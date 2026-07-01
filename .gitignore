@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Database
+*.db
+*.db-wal
+*.db-shm
+
+# Debug/test files (not for distribution)
+debug_*.py
+test_*.py
+check_*.py
+train_debug.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Books (large files, not for distribution)
+books/
+*.txt
+!requirements.txt
+
+# Data
+data/evaluation/

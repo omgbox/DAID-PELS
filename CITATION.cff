@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+title: "DAID-PELS"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - name: "omgbox"
+repository-code: "https://github.com/omgbox/DAID-PELS"
+license: MIT
+preferred-citation:
+  type: software
+  title: "DAID-PELS: Dictionary-Anchored Iterative Deepening with Phonetic-Enhanced Lexical Search"
+  year: 2026

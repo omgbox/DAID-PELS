@@ -1,20 +1,39 @@
 """
 BookBot Configuration
 All settings, paths, and constants.
+
+All paths are relative to the bookbot/ directory by default.
+Override with environment variables or --book/--dict/--db flags.
 """
 
 import os
 from pathlib import Path
 
 # =============================================================================
-# PATHS
+# PATHS (relative to bookbot/ directory)
 # =============================================================================
 
+# Project root = bookbot/ directory
+PROJECT_ROOT = Path(__file__).parent
+
 # Default book (Pride and Prejudice - clean Gutenberg text)
-BOOK_PATH = os.environ.get('BOOKBOT_BOOK_PATH', r"C:\projects\books\pride_and_prejudice_clean.txt")
-DICTIONARY_PATH = os.environ.get('BOOKBOT_DICT_PATH', r"C:\projects\English_dictionary.csv")
-DATABASE_PATH = os.environ.get('BOOKBOT_DB_PATH', r"C:\projects\bookbot.db")
-LOG_PATH = os.environ.get('BOOKBOT_LOG_PATH', r"C:\projects\bookbot.log")
+# Users: place your book.txt in bookbot/books/ or set BOOKBOT_BOOK_PATH
+BOOK_PATH = os.environ.get(
+    'BOOKBOT_BOOK_PATH',
+    str(PROJECT_ROOT / "books" / "pride_and_prejudice_clean.txt")
+)
+DICTIONARY_PATH = os.environ.get(
+    'BOOKBOT_DICT_PATH',
+    str(PROJECT_ROOT / "English_dictionary.csv")
+)
+DATABASE_PATH = os.environ.get(
+    'BOOKBOT_DB_PATH',
+    str(PROJECT_ROOT / "bookbot.db")
+)
+LOG_PATH = os.environ.get(
+    'BOOKBOT_LOG_PATH',
+    str(PROJECT_ROOT / "bookbot.log")
+)
 NLTK_DATA_PATH = None  # None = NLTK default (~/nltk_data/)
 
 # Data paths

@@ -35,8 +35,9 @@ Thumbs.db
 # Logs
 *.log
 
-# Books (large files, not for distribution)
+# Downloaded assets (large files, not for distribution)
 books/
+English_dictionary.csv
 *.txt
 !requirements.txt
 

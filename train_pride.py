@@ -1,10 +1,17 @@
 """
 BookBot Fast Training Script for Pride and Prejudice
+
+Usage:
+    cd bookbot
+    python train_pride.py
 """
 
 import sys
 import time
-sys.path.insert(0, r'C:\projects')
+from pathlib import Path
+
+# Add parent directory to path so we can import bookbot as a package
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from bookbot.config import BOOK_PATH, DICTIONARY_PATH, DATABASE_PATH
 from bookbot.database.db_manager import DBManager

@@ -167,12 +167,15 @@ def preprocess_gutenberg_book(input_path: str, output_path: str = None):
 
 
 if __name__ == '__main__':
-    # Process Pride and Prejudice
-    input_path = r'C:\projects\books\pride_and_prejudice.txt'
-    output_path = r'C:\projects\books\pride_and_prejudice_clean.txt'
-    
-    clean_text = preprocess_gutenberg_book(input_path, output_path)
-    
-    # Show first 500 chars
-    print("\nFirst 500 chars of cleaned text:")
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Preprocess a Project Gutenberg book')
+    parser.add_argument('input', help='Path to raw Gutenberg text file')
+    parser.add_argument('-o', '--output', help='Output path for cleaned text (optional)')
+    args = parser.parse_args()
+
+    output = args.output or args.input.replace('.txt', '_clean.txt')
+    clean_text = preprocess_gutenberg_book(args.input, output)
+
+    print(f"\nFirst 500 chars of cleaned text:")
     print(clean_text[:500])

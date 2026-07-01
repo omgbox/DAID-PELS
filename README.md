@@ -23,9 +23,132 @@ impossible for her to see the word without thinking of Pemberley and its
 Pemberley House, situated on the opposite side of the valley.
 ```
 
-## Architecture
+## Quick Start (2 minutes)
 
-The system has two main pipelines:
+```bash
+# 1. Clone
+git clone https://github.com/omgbox/DAID-PELS.git
+cd DAID-PELS
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Download NLTK data
+python -c "import nltk; nltk.download('averaged_perceptron_tagger'); nltk.download('punkt'); nltk.download('wordnet'); nltk.download('stopwords'); nltk.download('words'); nltk.download('averaged_perceptron_tagger_eng')"
+
+# 4. Download assets (dictionary + sample book)
+python download_assets.py
+
+# 5. Train
+python train_pride.py
+
+# 6. Query
+python -m bookbot.main query
+```
+
+## Installation
+
+### Prerequisites
+- Python 3.10+ (3.11 or 3.12 recommended)
+- ~200MB disk space for dictionary + database
+- Optional: conda (for pynini FST support)
+
+### Step-by-Step
+
+#### 1. Clone the repository
+```bash
+git clone https://github.com/omgbox/DAID-PELS.git
+cd DAID-PELS
+```
+
+#### 2. Install Python dependencies
+```bash
+pip install -r requirements.txt
+```
+
+This installs:
+- `nltk` — POS tagging, NER, WordNet
+- `pysbd` — sentence boundary detection
+- `rank-bm25` — BM25Okapi ranking
+- `inflect` — singularization/pluralization
+- `regex` — enhanced regex
+- `pronouncing` — CMU Pronouncing Dictionary (134K words)
+- `jellyfish` — Jaro-Winkler, Soundex, Metaphone
+- `abydos` — Double Metaphone, phonetic algorithms
+
+#### 3. Download NLTK data
+```bash
+python -c "
+import nltk
+nltk.download('averaged_perceptron_tagger')
+nltk.download('averaged_perceptron_tagger_eng')
+nltk.download('punkt')
+nltk.download('punkt_tab')
+nltk.download('wordnet')
+nltk.download('stopwords')
+nltk.download('words')
+nltk.download('maxent_ne_chunker')
+nltk.download('maxent_ne_chunker_tab')
+"
+```
+
+#### 4. Download dictionary and sample book
+```bash
+python download_assets.py
+```
+
+This downloads:
+- `English_dictionary.csv` — 175K-entry English dictionary (Word, POS, Definition)
+- `books/pride_and_prejudice_clean.txt` — Clean Gutenberg text of Pride and Prejudice
+
+**Manual download** if the script fails:
+- Dictionary: https://raw.githubusercontent.com/vijayvamsi28/English-Dictionary/refs/heads/main/English_dictionary.csv
+- Book: Download from Project Gutenberg (https://www.gutenberg.org/ebooks/1342) and clean with `python preprocess_gutenberg.py`
+
+#### 5. (Optional) Install pynini for FST support
+```bash
+conda install -c conda-forge pynini
+```
+
+## Usage
+
+### Train on a Book
+```bash
+# Fast training (Pride and Prejudice, ~60 seconds)
+python train_pride.py
+
+# Or use the main entry point
+python -m bookbot.main train --passes 1
+
+# Train on your own book
+python -m bookbot.main train --book books/my_book.txt
+
+# Train with more passes
+python -m bookbot.main train --passes 3
+```
+
+### Query
+```bash
+# Interactive mode (multi-turn with conversation memory)
+python -m bookbot.main query
+
+# Single question
+python -m bookbot.main query --single "Who is Elizabeth?"
+python -m bookbot.main query --single "What is Pemberley?"
+python -m bookbot.main query --single "Tell me about Darcy"
+```
+
+### Show Database Stats
+```bash
+python -m bookbot.main stats
+```
+
+### Preprocess Gutenberg Books
+```bash
+python preprocess_gutenberg.py books/raw_book.txt -o books/clean_book.txt
+```
+
+## Architecture
 
 ### Training Pipeline
 ```
@@ -83,83 +206,6 @@ For "Who is X?" questions, the system queries the database for longer sentences 
 | **Offline NLP** | Runs entirely locally — no API calls, no internet required after training |
 | **Low-resource deployment** | No GPU needed, runs on any machine with Python 3 |
 
-## Quick Start
-
-### Prerequisites
-- Python 3.10+
-- conda (for pynini support, optional)
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/omgbox/DAID-PELS.git
-cd DAID-PELS
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Download NLTK data
-python -c "import nltk; nltk.download('averaged_perceptron_tagger'); nltk.download('punkt'); nltk.download('wordnet'); nltk.download('stopwords'); nltk.download('words')"
-
-# Optional: install pynini for FST support
-conda install -c conda-forge pynini
-```
-
-### Train on a Book
-
-```bash
-# Train on Pride and Prejudice (default)
-python train_pride.py
-
-# Or use the main entry point
-python -m bookbot.main train --passes 1
-```
-
-Training takes ~60 seconds for a 724K-character book (15,743 sentences, 276 entities).
-
-### Query
-
-```bash
-# Interactive mode
-python -m bookbot.main query
-
-# Single question
-python -m bookbot.main query --single "Who is Elizabeth?"
-```
-
-### Use Your Own Book
-
-```bash
-# Place a plain text file at books/my_book.txt, then:
-python -m bookbot.main train --book books/my_book.txt
-```
-
-For Gutenberg books, use the preprocessor:
-```bash
-python preprocess_gutenberg.py books/pride_and_prejudice.txt books/pride_and_prejudice_clean.txt
-```
-
-## Database Schema
-
-The system uses SQLite with 25 tables:
-
-| Table | Purpose |
-|-------|---------|
-| `definitions` | 175K dictionary entries |
-| `sentences` | Tokenized sentences from the book |
-| `sentence_tokens` | Individual tokens with POS tags |
-| `entities` | Named entities (276 for Pride and Prejudice) |
-| `svo_triples` | Subject-Verb-Object relationship triples |
-| `entity_mentions` | Entity occurrences in sentences |
-| `knowledge_edges` | Entity relationship graph |
-| `coreference_chains` | Pronoun resolution chains |
-| `topics` | Topic clusters |
-| `temporal_events` | Time-related events |
-| `convergence_log` | Training pass statistics |
-
-Full schema: `database/schema.sql`
-
 ## Configuration
 
 All settings in `config.py`. Environment variables override paths:
@@ -170,6 +216,11 @@ All settings in `config.py`. Environment variables override paths:
 | `BOOKBOT_DICT_PATH` | `English_dictionary.csv` | Dictionary CSV path |
 | `BOOKBOT_DB_PATH` | `bookbot.db` | SQLite database path |
 | `BOOKBOT_LOG_LEVEL` | `INFO` | Logging level |
+
+Or use command-line flags:
+```bash
+python -m bookbot.main train --book books/my_book.txt --dict my_dict.csv --db my.db
+```
 
 ## Performance
 
@@ -182,6 +233,26 @@ All settings in `config.py`. Environment variables override paths:
 | Database size | ~50MB |
 | Dictionary entries | 175,721 |
 | CMU pronunciations | 134,000+ words |
+
+## Database Schema
+
+The system uses SQLite with 25 tables:
+
+| Table | Purpose |
+|-------|---------|
+| `definitions` | 175K dictionary entries |
+| `sentences` | Tokenized sentences from the book |
+| `sentence_tokens` | Individual tokens with POS tags |
+| `entities` | Named entities |
+| `svo_triples` | Subject-Verb-Object relationship triples |
+| `entity_mentions` | Entity occurrences in sentences |
+| `knowledge_edges` | Entity relationship graph |
+| `coreference_chains` | Pronoun resolution chains |
+| `topics` | Topic clusters |
+| `temporal_events` | Time-related events |
+| `convergence_log` | Training pass statistics |
+
+Full schema: `database/schema.sql`
 
 ## Research
 
@@ -198,12 +269,15 @@ Research notes: `research/` directory
 ## Project Structure
 
 ```
-bookbot/
+DAID-PELS/
 ├── main.py                 # Entry point (train/query/stats)
 ├── pipeline.py             # Training + query orchestration
 ├── pipeline_context.py     # Shared context between modules
-├── config.py               # All settings
+├── config.py               # All settings (portable paths)
 ├── train_pride.py          # Fast training script
+├── download_assets.py      # Download dictionary + sample book
+├── preprocess_gutenberg.py # Clean Gutenberg texts
+├── requirements.txt        # Python dependencies
 ├── core/                   # NLP modules
 │   ├── tokenizer.py        # pysbd sentence splitting
 │   ├── pos_tagger.py       # Batch-optimized NLTK POS
@@ -224,6 +298,7 @@ bookbot/
 │   └── ...
 ├── training/               # Training management
 ├── database/               # SQLite schema + manager
+├── books/                  # Place your books here
 ├── research/               # Research notes
 └── docs/                   # Full specification
 ```

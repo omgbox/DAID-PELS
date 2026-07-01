@@ -12,15 +12,27 @@ DAID-PELS is a chatbot that reads a book, builds a knowledge base through iterat
 
 ```
 $ python -m bookbot.main query
+============================================================
+  BOOKBOT - Pride and Prejudice
+============================================================
+  Loaded 15,743 sentences
+  Type your questions, or 'quit' to exit.
+  Try: 'Who is Elizabeth?', 'Tell me more about Darcy'
+============================================================
+
 > Who is Elizabeth?
-According to the book, Miss Elizabeth herself, were, I am inclined to think,
-rather hard on him... When Jane and Elizabeth were alone, the former, who
-had been cautious in.
+Based on the text: Elizabeth were herself, has an exposition, catching her eye.
+Connected to: Bennet, Bingley, Catherine, Charlotte.
 
 > What is Pemberley?
-With all my heart: I will buy Pemberley itself, if Darcy will sell it...
-impossible for her to see the word without thinking of Pemberley and its
-Pemberley House, situated on the opposite side of the valley.
+Based on the text: Pemberley is a powerful motive, admit his society.
+Connected to: Darcy, Elizabeth, Gardiner.
+
+> Tell me about Darcy
+Do not you, Darcy?.
+
+> quit
+Goodbye!
 ```
 
 ## Quick Start (2 minutes)
@@ -39,11 +51,42 @@ python -c "import nltk; nltk.download('averaged_perceptron_tagger'); nltk.downlo
 # 4. Download assets (dictionary + sample book)
 python download_assets.py
 
-# 5. Train
+# 5. Train (~60 seconds)
 python train_pride.py
 
-# 6. Query
+# 6. Chat!
 python -m bookbot.main query
+```
+
+## How to Chat
+
+### Interactive mode (multi-turn conversation)
+```bash
+python -m bookbot.main query
+```
+Then type questions at the `>` prompt. The system remembers context across turns.
+
+### Single question mode
+```bash
+python -m bookbot.main query --single "Who is Elizabeth?"
+python -m bookbot.main query --single "What is Pemberley?"
+python -m bookbot.main query --single "Tell me about Darcy"
+```
+
+### Example conversation
+```
+> Who is Elizabeth?
+Based on the text: Elizabeth were herself, has an exposition.
+Connected to: Bennet, Bingley, Catherine, Charlotte.
+
+> What about her sister?
+Here's more about Jane: Connected to: Bennet, Bingley, Elizabeth.
+
+> Tell me more about Darcy
+Do not you, Darcy?.
+
+> What did he do?
+Darcy proposed, Darcy helped, Darcy returned.
 ```
 
 ## Installation

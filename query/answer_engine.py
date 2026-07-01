@@ -134,10 +134,22 @@ class AnswerEngine(BaseModule):
         intent = input_data.get('intent', 'EXPLANATORY')
         retrieval_results = input_data.get('retrieval_results', [])
         context = input_data.get('context')
+        structured_evidence = input_data.get('structured_evidence', {})
+        query_entities = input_data.get('query_entities', [])
 
         sentences = context.sentences if context else []
         top_sentences = self._get_top_sentences(retrieval_results, sentences, query)
-        answer = self._build_answer(query, intent, top_sentences, context)
+
+        # Collect all structured evidence across entities
+        all_svo = []
+        all_related = []
+        for entity in query_entities:
+            ev = structured_evidence.get(entity, {})
+            all_svo.extend(ev.get('actions', []))
+            all_related.extend(ev.get('related_entities', []))
+
+        answer = self._build_answer(query, intent, top_sentences, context,
+                                    all_svo, all_related, query_entities)
 
         self._initialized = True
         return {'answer': answer}
@@ -184,7 +196,9 @@ class AnswerEngine(BaseModule):
         return scored[:max_sentences]
 
     def _build_answer(self, query: str, intent: str,
-                      sentences: List[Dict], context: PipelineContext = None) -> Dict:
+                      sentences: List[Dict], context: PipelineContext = None,
+                      svo_triples: List = None, related_entities: List = None,
+                      query_entities: List = None) -> Dict:
         if not sentences:
             return {
                 'text': "I couldn't find relevant information in the book.",
@@ -193,7 +207,8 @@ class AnswerEngine(BaseModule):
             }
 
         if intent == 'DEFINITIONAL':
-            answer_text = self._build_definitional_answer(query, sentences)
+            answer_text = self._build_definitional_answer(query, sentences,
+                                                          svo_triples, related_entities)
         elif intent == 'FACTUAL':
             answer_text = self._build_factual_answer(query, sentences)
         elif intent == 'CAUSAL':
@@ -220,68 +235,88 @@ class AnswerEngine(BaseModule):
             'sentences': sentences,
         }
 
-    def _build_definitional_answer(self, query: str, sentences: List[Dict]) -> str:
-        """Build definitional answer - combine multiple sentences for character questions."""
+    def _build_definitional_answer(self, query: str, sentences: List[Dict],
+                                    svo_triples: List = None,
+                                    related_entities: List = None) -> str:
+        """Build definitional answer using text + structured evidence."""
         question_target = extract_question_target(query)
         target_lower = question_target.lower() if question_target else None
-        
-        # First: try to find a sentence where the entity is the subject + be-verb
-        # Only use if sentence is reasonably long (not a fragment)
+        svo = svo_triples or []
+        related = related_entities or []
+
+        # Build from structured evidence first
+        parts = []
+        entity = question_target or ''
+
+        # Key actions from SVO
+        entity_actions = [t for t in svo if entity.lower() in (t.get('subject', '') if isinstance(t, dict) else t[0] if isinstance(t, (list, tuple)) else '').lower()]
+        if entity_actions:
+            for t in entity_actions[:4]:
+                if isinstance(t, dict):
+                    s, v, o = t.get('subject', ''), t.get('verb', ''), t.get('object', '')
+                elif isinstance(t, (list, tuple)) and len(t) >= 3:
+                    s, v, o = t[0], t[1], t[2]
+                else:
+                    continue
+                line = f"{s} {v}"
+                if o:
+                    line += f" {o}"
+                parts.append(line + '.')
+
+        # Related entities
+        if related:
+            names = set()
+            for r in related[:5]:
+                if isinstance(r, dict):
+                    name = r.get('related', '')
+                elif isinstance(r, (list, tuple)):
+                    name = r[0] if r else ''
+                else:
+                    name = str(r)
+                if name:
+                    names.add(name)
+            if names:
+                parts.append(f"Connected to: {', '.join(names)}.")
+
+        # Text sentences for additional context
         if target_lower:
             for sent in sentences:
                 text = sent.get('text', '')
                 text_lower = text.lower()
-                if (text_lower.startswith(target_lower) and 
+                if (target_lower in text_lower and
                     len(text.split()) >= 6 and
                     any(w in text_lower for w in ['is', 'was', 'were', 'are'])):
-                    return clean_answer_text(text)
-        
-        # Second: for character questions, use DB to find longer, more informative sentences
-        if target_lower:
+                    parts.append(clean_answer_text(text))
+                    break
+
+        # Fallback: DB lookup
+        if not parts and target_lower:
             db = getattr(self, 'db', None)
             if db is not None:
                 try:
                     rows = db.execute(
                         "SELECT sentence_id, raw_text FROM sentences "
                         "WHERE raw_text LIKE ? AND LENGTH(raw_text) > 30 "
-                        "ORDER BY LENGTH(raw_text) DESC LIMIT 5",
+                        "ORDER BY LENGTH(raw_text) DESC LIMIT 3",
                         (f'%{question_target}%',)
                     )
-                    combined = []
                     for row in (rows or []):
                         text = clean_answer_text(row[1])
-                        words = text.split()
-                        if len(words) >= 4:
-                            combined.append(text)
-                    if combined:
-                        return ' '.join(combined[:3])
-                except Exception as e:
-                    import traceback
-                    traceback.print_exc()
-                    self.logger.debug(f"DB lookup failed: {e}")
-        
-        # Third: combine from BM25 results
-        if target_lower:
-            entity_sentences = []
+                        if len(text.split()) >= 4:
+                            parts.append(text)
+                except Exception:
+                    pass
+
+        # Fallback: BM25 results
+        if not parts:
             for sent in sentences:
                 text = sent.get('text', '')
-                if target_lower in text.lower():
-                    entity_sentences.append(clean_answer_text(text))
-            if entity_sentences:
-                combined = []
-                for s in entity_sentences[:5]:
-                    if len(s.split()) >= 3:
-                        combined.append(s)
-                if combined:
-                    return ' '.join(combined)
-        
-        # Fourth: look for definitional patterns in any sentence
-        for sent in sentences:
-            text = sent.get('text', '').lower()
-            if any(word in text for word in ['is', 'was', 'means', 'refers']):
-                return clean_answer_text(sent.get('text', ''))
-        
-        return clean_answer_text(sentences[0].get('text', '')) if sentences else ""
+                if target_lower and target_lower in text.lower():
+                    parts.append(clean_answer_text(text))
+                    if len(parts) >= 2:
+                        break
+
+        return ' '.join(parts) if parts else "I couldn't find enough information."
 
     def _build_factual_answer(self, query: str, sentences: List[Dict]) -> str:
         """Build factual answer - best term overlap."""

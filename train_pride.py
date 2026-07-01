@@ -19,6 +19,10 @@ from bookbot.pipeline_context import PipelineContext
 from bookbot.core.tokenizer import Tokenizer
 from bookbot.core.pos_tagger import POSTagger
 from bookbot.core.ner_extractor import NERExtractor
+from bookbot.core.svo_extractor import SVOExtractor
+from bookbot.core.entity_graph import EntityGraph
+from bookbot.core.coreference import Coreference
+from bookbot.core.topic_modeler import TopicModeler
 
 
 def print_progress(step: str, current: int = None, total: int = None):
@@ -47,13 +51,13 @@ def fast_train():
         print("  Deleted existing database")
 
     # Initialize database
-    print("\n[1/5] Initializing database...")
+    print("\n[1/9] Initializing database...")
     db = DBManager(DATABASE_PATH)
     db.connect()
     db.initialize_schema()
 
     # Load dictionary using streaming
-    print("[2/5] Loading dictionary (streaming)...")
+    print("[2/9] Loading dictionary (streaming)...")
     dict_start = time.time()
     import csv
     with open(DICTIONARY_PATH, 'r', encoding='utf-8') as f:
@@ -83,7 +87,7 @@ def fast_train():
     print(f"\n  Loaded {len(definitions):,} entries in {time.time()-dict_start:.1f}s")
 
     # Load book
-    print("[3/5] Loading Pride and Prejudice...")
+    print("[3/9] Loading Pride and Prejudice...")
     book_start = time.time()
     with open(BOOK_PATH, 'r', encoding='utf-8') as f:
         book_text = f.read()
@@ -106,7 +110,7 @@ def fast_train():
     context.normalized_text = cleaned
 
     # Tokenize
-    print("[4/5] Tokenizing...")
+    print("[4/9] Tokenizing...")
     tok_start = time.time()
     tokenizer = Tokenizer()
     result = tokenizer.process(context)
@@ -115,7 +119,7 @@ def fast_train():
     print(f"  Tokenized {len(sentences)} sentences in {time.time()-tok_start:.1f}s")
 
     # POS Tag + NER
-    print("[5/5] POS tagging + NER...")
+    print("[5/9] POS tagging + NER...")
     tag_start = time.time()
     pos_tagger = POSTagger()
     result = pos_tagger.process(context)
@@ -127,6 +131,48 @@ def fast_train():
     result = ner.process(context)
     context.update(result)
     print(f"  NER: {len(context.entities)} entities in {time.time()-ner_start:.1f}s")
+
+    # SVO Extraction (skip short fragments - need 5+ tokens for subject-verb-object)
+    print("[6/9] SVO extraction...")
+    svo_start = time.time()
+    svo = SVOExtractor()
+    # Filter to sentences with enough tokens for SVO patterns
+    long_sents = [s for s in context.sentences if len(s.get('tokens', [])) >= 5]
+    original_sents = context.sentences
+    context.sentences = long_sents
+    result = svo.process(context)
+    context.update(result)
+    context.sentences = original_sents  # Restore full list
+    print(f"  SVO: {len(context.svo_triples)} triples from {len(long_sents)} sentences in {time.time()-svo_start:.1f}s")
+
+    # Entity Graph
+    print("[7/9] Entity graph...")
+    graph_start = time.time()
+    graph = EntityGraph()
+    result = graph.process(context)
+    context.update(result)
+    print(f"  Graph: {len(context.knowledge_edges)} edges in {time.time()-graph_start:.1f}s")
+
+    # Coreference
+    print("[8/9] Coreference resolution...")
+    coref_start = time.time()
+    coref = Coreference()
+    result = coref.process(context)
+    context.update(result)
+    print(f"  Coref: {len(context.coreferences)} chains in {time.time()-coref_start:.1f}s")
+
+    # Topic Modeling (sample for speed - full matrix is O(n^2))
+    print("[9/9] Topic modeling (sampled)...")
+    topic_start = time.time()
+    topics = TopicModeler()
+    # Sample every 10th sentence for topic modeling to avoid O(n^2) on 15K sentences
+    sampled_sents = context.sentences[::10]
+    original_sents = context.sentences
+    context.sentences = sampled_sents
+    result = topics.process(context)
+    context.update(result)
+    context.sentences = original_sents
+    print(f"  Topics: {len(context.topics)} topics from {len(sampled_sents)} sampled sentences in {time.time()-topic_start:.1f}s")
 
     # Save to database
     print("\nSaving to database...")
@@ -174,6 +220,59 @@ def fast_train():
             'centrality': entity.get('centrality', 0.0),
         })
     print(f"  Saved {len(context.entities)} entities")
+
+    # Save SVO triples
+    if context.svo_triples:
+        svo_rows = []
+        for triple in context.svo_triples:
+            svo_rows.append({
+                'subject': triple.get('subject', ''),
+                'verb': triple.get('verb', ''),
+                'object': triple.get('object', ''),
+                'sentence_id': triple.get('sentence_id', 0),
+                'confidence': triple.get('confidence', 0.5),
+                'passive': 1 if triple.get('passive') else 0,
+            })
+        db.insert_many('svo_triples', svo_rows)
+        print(f"  Saved {len(svo_rows)} SVO triples")
+
+    # Save knowledge edges
+    if context.knowledge_edges:
+        edge_rows = []
+        for edge in context.knowledge_edges:
+            edge_rows.append({
+                'source_type': edge.get('source_type', 'entity'),
+                'source_id': edge.get('source_id', ''),
+                'target_type': edge.get('target_type', 'entity'),
+                'target_id': edge.get('target_id', ''),
+                'edge_type': edge.get('edge_type', 'co_occurrence'),
+                'weight': edge.get('weight', 1.0),
+            })
+        db.insert_many('knowledge_edges', edge_rows)
+        print(f"  Saved {len(edge_rows)} knowledge edges")
+
+    # Save coreference chains
+    if context.coreferences:
+        chain_rows = []
+        for chain in context.coreferences:
+            chain_rows.append({
+                'representative': chain.get('antecedent', ''),
+                'mention_count': 1,
+            })
+        db.insert_many('coreference_chains', chain_rows)
+        print(f"  Saved {len(chain_rows)} coreference chains")
+
+    # Save topics
+    if context.topics:
+        topic_rows = []
+        for topic in context.topics:
+            topic_rows.append({
+                'label': topic.get('label', ''),
+                'top_terms': topic.get('top_terms', ''),
+                'sentence_count': topic.get('sentence_count', 0),
+            })
+        db.insert_many('topics', topic_rows)
+        print(f"  Saved {len(topic_rows)} topics")
 
     # Print final statistics
     stats = db.get_stats()

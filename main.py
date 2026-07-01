@@ -46,6 +46,12 @@ from .query.conversation_context import ConversationContext
 from .query.conversation_memory import ConversationMemory
 from .query.contextual_rewriter import ContextualQueryRewriter
 
+# New modules (Phases 2-6)
+from .query.structured_retriever import StructuredRetriever
+from .query.answer_synthesizer import AnswerSynthesizer
+from .query.query_refiner import QueryRefiner
+from .query.response_generator import ResponseGenerator
+
 
 def create_pipeline(config: dict = None) -> Pipeline:
     """
@@ -86,6 +92,9 @@ def create_pipeline(config: dict = None) -> Pipeline:
     pipeline.register_module('answer_engine', AnswerEngine(config))
     pipeline.register_module('confidence_scorer', ConfidenceScorer(config))
     pipeline.register_module('response_formatter', ResponseFormatter(config))
+
+    # New modules (Phases 2-6)
+    pipeline.register_module('answer_synthesizer', AnswerSynthesizer())
 
     return pipeline
 
@@ -327,6 +336,38 @@ def train(book_path: str, dict_path: str, db_path: str, max_passes: int = None):
                 'confidence': triple.get('confidence', 0.5),
             })
 
+    # Save knowledge edges
+    if context.knowledge_edges:
+        viz.update_step(f"Saving {len(context.knowledge_edges)} knowledge edges...")
+        for edge in context.knowledge_edges:
+            db.insert('knowledge_edges', {
+                'source_type': edge.get('source_type', 'entity'),
+                'source_id': edge.get('source_id'),
+                'target_type': edge.get('target_type', 'entity'),
+                'target_id': edge.get('target_id'),
+                'edge_type': edge.get('edge_type'),
+                'weight': edge.get('weight', 1.0),
+            })
+
+    # Save coreference chains
+    if context.coreferences:
+        viz.update_step(f"Saving {len(context.coreferences)} coreference chains...")
+        for chain in context.coreferences:
+            db.insert('coreference_chains', {
+                'representative': chain.get('antecedent', ''),
+                'mention_count': 1,
+            })
+
+    # Save topics
+    if context.topics:
+        viz.update_step(f"Saving {len(context.topics)} topics...")
+        for topic in context.topics:
+            db.insert('topics', {
+                'label': topic.get('label', ''),
+                'top_terms': topic.get('top_terms', ''),
+                'sentence_count': topic.get('sentence_count', 0),
+            })
+
     # Print final statistics
     stats = db.get_stats()
     viz.update_step("Training complete!")
@@ -355,6 +396,18 @@ def query(db_path: str, single_query: str = None):
 
     # Create pipeline
     pipeline = create_pipeline()
+
+    # Create structured retriever with db connection
+    retriever = StructuredRetriever(db)
+    pipeline.modules['structured_retriever'] = retriever
+
+    # Create query refiner
+    refiner = QueryRefiner(db=db)
+    pipeline.modules['query_refiner'] = refiner
+
+    # Create response generator
+    generator = ResponseGenerator()
+    pipeline.modules['response_generator'] = generator
 
     # Set database on all modules
     for module_name, module in pipeline.modules.items():

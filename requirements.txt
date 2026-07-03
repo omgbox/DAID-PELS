@@ -1,0 +1,27 @@
+# BookBot Dependencies
+# Install: pip install -r requirements.txt
+# Note: Pynini requires conda install -c conda-forge pynini
+
+# NLP - Core
+nltk==3.8.1                    # POS tagging, NER, chunking, WordNet
+pysbd==0.3.4                   # Sentence boundary detection
+
+# Search and Ranking
+rank-bm25==0.2.2               # BM25Okapi implementation
+                               # (depends on numpy, which it brings)
+
+# Database
+# SQLite3 is built into Python standard library (no pip install needed)
+
+# Utilities
+inflect==7.0.0                 # Singularization/pluralization
+regex==2023.10.3               # Enhanced regex (superset of re module)
+
+# Phonetic Matching
+pronouncing                    # CMU Pronouncing Dictionary access (134K words)
+jellyfish                      # Jaro-Winkler similarity, Soundex, Metaphone
+abydos                         # Double Metaphone, phonetic algorithms
+
+# FST Engine (install separately via conda)
+# pynini==2.1.7                # Weighted FST library (OpenFst backend)
+#                               # Install: conda install -c conda-forge pynini

@@ -1,5 +1,5 @@
 # BookBot Architecture Research & TODO
-# Transformation: Book QA System → General Conversational Chatbot
+# Transformation: Book QA System → True LLM-Style Chatbot
 
 ## Current Architecture Summary
 
@@ -18,204 +18,184 @@ The system's actual intelligence comes from the **rule-based pipeline**: BM25 + 
 
 ---
 
-## CHATBOT TRANSFORMATION PHASES
+## TRUE LLM CHATBOT IMPROVEMENTS
 
-### Phase 1: Expand Intent Classifier + Conversation Router (Foundation)
-**Goal**: Make the system recognize that not every input is a book question.
+### 1. Better Response Generation
+**Goal**: Generate natural, fluent prose instead of copying Wikipedia text
 
-**Files to modify:**
-- `query/query_classifier.py` — Add 8+ new intent types
-- `pipeline.py` — Add routing layer at top of `run_query()`
-- `config.py` — Add conversational config section
+**Current**: "Rust is a programming language..."
+**Target**: "Rust is actually a really cool language! It's known for being fast and safe."
 
-**New files to create:**
-- `query/conversation_router.py` — Routes intents to handlers
+**How to implement:**
+- Use DistilGPT2 to rewrite Wikipedia text in natural style
+- Add templates for different response styles
+- Generate multi-sentence answers from single facts
 
-**New intents:**
-- GREETING, FAREWELL
-- PERSONAL_STATEMENT ("I like gardening")
-- EMOTIONAL ("I'm feeling sad")
-- OPINION ("What do you think about X?")
-- GENERAL_KNOWN ("What is the capital of France?")
-- HELP
-
-**Status**: IN PROGRESS
+**Priority**: HIGH
 
 ---
 
-### Phase 2: Personal Statement Handler + User Profile
-**Goal**: Handle "I like gardening" and remember it.
+### 2. Knowledge Synthesis
+**Goal**: Combine information from multiple sources into coherent answers
 
-**Files to modify:**
-- `database/schema.sql` — Add new tables
-- `database/db_manager.py` — Add user preference methods
+**Current**: Returns single Wikipedia sentence
+**Target**: "Python is great for beginners, Rust is for systems programming, JavaScript runs in browsers..."
 
-**New files to create:**
-- `query/personal_statement_handler.py` — Detect and respond to personal statements
-- `query/user_profile.py` — Store/retrieve user preferences
+**How to implement:**
+- Query multiple Wikipedia pages
+- Synthesize facts into unified response
+- Use DistilGPT2 to generate natural transitions
 
-**New DB tables:**
-- `user_preferences` — Store user likes/dislikes
-- `user_facts` — Store personal facts
-- `learned_knowledge` — Store facts from conversations
-
-**Status**: PENDING
+**Priority**: HIGH
 
 ---
 
-### Phase 3: General Knowledge Integration (Wikipedia)
-**Goal**: Answer questions not covered by the book.
+### 3. Conversational Personality
+**Goal**: Track user interests and adapt responses
 
-**Files to modify:**
-- `pipeline.py` — Add knowledge retrieval path
-- `requirements.txt` — Add wikipedia-api
+**Current**: Generic responses for everyone
+**Target**: Personalized based on conversation history
 
-**New files to create:**
-- `query/general_knowledge_retriever.py` — Wikipedia + local KB retrieval
-- `query/conversational_responder.py` — General conversation responses
-- `query/knowledge_base.py` — General fact store
+**How to implement:**
+- Extend user_profile with conversation patterns
+- Track topics discussed
+- Adapt tone based on user's style
 
-**Knowledge sources:**
-1. Wikipedia API (highest quality)
-2. Local knowledge base (learned from conversations)
-3. DistilGPT2 generation (fallback)
-
-**Status**: PENDING
+**Priority**: MEDIUM
 
 ---
 
-### Phase 4: Learning from Conversations
-**Goal**: The chatbot improves over time.
+### 4. Source Attribution
+**Goal**: Tell users where information comes from
 
-**Files to modify:**
-- `query/conversation_memory.py` — Add learning capability
-- `query/general_knowledge_retriever.py` — Search learned facts
+**Current**: No source attribution
+**Target**: "According to Pride and Prejudice..." or "Wikipedia states that..."
 
-**New capabilities:**
-- Extract and store personal facts from user statements
-- Store factual Q&A pairs for future reference
-- Confidence scoring for learned facts
+**How to implement:**
+- Track source in response generation
+- Add attribution templates
+- Differentiate book vs Wikipedia vs general knowledge
 
-**Status**: PENDING
-
----
-
-### Phase 5: Polish and Integration
-**Goal**: Seamless experience across all conversation types.
-
-**Files to modify:**
-- `main.py` — Remove book-specific branding
-- `query/response_formatter.py` — Generalize source formatting
-- `query/response_personalizer.py` — Personalize with user preferences
-
-**New files to create:**
-- `query/response_personalizer.py` — Inject user preferences into responses
-
-**Features:**
-- Graceful degradation (book → knowledge → templates → "I don't know")
-- Response personalization using user profile
-- Update UI to be generic (not Pride and Prejudice specific)
-
-**Status**: PENDING
+**Priority**: MEDIUM
 
 ---
 
-## ARCHITECTURE DECISIONS
+### 5. Better Context Handling
+**Goal**: Understand pronouns and references across turns
 
-### Decision 1: Routing vs. Blending
-Route early based on intent. Don't run full book pipeline for "I like gardening."
+**Current**: "Who created it?" → "I don't know" (doesn't remember "it" = Rust)
+**Target**: "Graydon Hoare created it in 2006"
 
-### Decision 2: Keep Book Pipeline Intact
-Don't modify existing book-QA code. Create new modules alongside and add routing.
+**How to implement:**
+- Expand pronoun resolution
+- Track entities mentioned in conversation
+- Build entity cache for quick lookup
 
-### Decision 3: Database Extension
-Add new tables to existing SQLite. Keep everything in one place.
-
-### Decision 4: Model Upgrade Path
-DistilGPT2 for now. Consider `microsoft/DialoGPT-medium` or `facebook/blenderbot-400M-distill` later.
-
-### Decision 5: Graceful Degregadation
-Book → Knowledge → Templates → "I don't know" with follow-up suggestion.
+**Priority**: HIGH
 
 ---
 
-## RESEARCH QUESTIONS (Original)
+### 6. Multi-Source Knowledge Base
+**Goal**: Combine book knowledge with Wikipedia
 
-### 1. Why don't the attention layers learn?
-- `self_attention.py` and `token_attention.py` have Q/K/V projections that are NEVER updated
-- Only the scoring head (8 weights) is trained via hinge loss
-- **Question:** Is this by design (frozen feature extractor) or an oversight?
+**Current**: Book OR Wikipedia
+**Target**: Both sources combined
 
-### 2. Why are Word2Vec embeddings unused in retrieval?
-- `word2vec.json` is trained and loaded
-- But `trilateral_bm25.py` is purely lexical — no embedding similarity
-- **Question:** Was semantic retrieval attempted and removed?
+**How to implement:**
+- Search book database first
+- Supplement with Wikipedia if needed
+- Merge information coherently
 
-### 3. Why is MiniGPT so small?
-- 463K params, dim=64, 4 layers, vocab=4000
-- **Replaced with DistilGPT2 (82M params)**
-
-### 4. Why no subword embeddings?
-- Docstring claims subword support but code has none
-- **Question:** Was this planned but never implemented?
-
-### 5. Why is the style realizer rule-based?
-- Hardcoded word lists, no learning from book
-- **Question:** Was a learned style transfer model considered?
-
-### 6. Why no discourse coherence model?
-- Ordering head is never trained
-- **Question:** How to learn discourse patterns from a single book?
-
-### 7. Why is idiom detection binary?
-- Exact hash-table lookup only
-- **Question:** Was fuzzy matching attempted?
-
-### 8. Why no sentiment/tonal tracking?
-- No per-entity emotional trajectory
-- **Question:** Was this considered in the original design?
+**Priority**: MEDIUM
 
 ---
 
-## TOP 5 IMPROVEMENTS (Impact Order)
+### 7. Response Quality Scoring
+**Goal**: Rank responses by quality and pick the best
 
-### 1. Semantic Retrieval — Biggest Impact
-BM25 is purely lexical. Word2Vec embeddings exist but are never used in retrieval.
+**Current**: Returns first result
+**Target**: Returns best result based on quality
 
-### 2. Train Attention End-to-End
-Self-attention weights are randomly initialized and never updated.
+**How to implement:**
+- Score responses on fluency, relevance, completeness
+- Use DistilGPT2 to generate multiple options
+- Pick highest-scoring response
 
-### 3. Replace MiniGPT with DistilGPT2
-✅ DONE — DistilGPT2 (82M params) now used instead of MiniGPT (463K params).
-
-### 4. Fix Double-Counted Score Bug
-`self_attention.py:327` — `0.5 * scores + 0.3 * cross_attn + 0.2 * scores` = `0.7 * scores + 0.3 * cross_attn`.
-
-### 5. Add Subword Embeddings
-Word2Vec claims subword support but has none. OOV words map to UNK.
+**Priority**: LOW
 
 ---
 
-## METRICS TO TRACK
+### 8. Fact Verification
+**Goal**: Cross-reference information for accuracy
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| Intent types | 9 (book only) | 17+ (conversational) |
-| Personal statements handled | 0% | 100% |
-| General knowledge sources | 0 | 3+ (Wikipedia, local KB, generated) |
-| User preferences stored | 0 | Unlimited |
-| Conversation quality | Book QA only | Natural conversation |
-| Training required | 40s per book | 0s (optional) |
+**Current**: Single source only
+**Target**: Multiple sources for verification
+
+**How to implement:**
+- Query multiple sources
+- Compare facts
+- Flag inconsistencies
+
+**Priority**: LOW
 
 ---
 
-## FILES TO INVESTIGATE
+## IMPLEMENTATION PLAN
 
-| File | Why |
-|------|-----|
-| `training/attention_trainer.py` | Why only head is trained, not attention |
-| `training/self_supervised_data.py` | Quality of auto-generated training pairs |
-| `query/torch_attention.py` | Why scores are uniform |
-| `pipeline.py:290-380` | Why advanced answer falls back to raw sentences |
-| `query/prose_realizer.py` | Why sentence scoring is so basic |
-| `query/response_formatter.py` | How `already_good` keyword list works |
+### Phase 6: Response Quality (Current Priority)
+1. Rewrite Wikipedia text with DistilGPT2 for natural style
+2. Add multi-sentence synthesis
+3. Add source attribution
+
+### Phase 7: Context Enhancement
+1. Expand pronoun resolution
+2. Track conversation entities
+3. Build entity cache
+
+### Phase 8: Personality & Personalization
+1. Extend user profile with patterns
+2. Track topics discussed
+3. Adapt response style
+
+### Phase 9: Advanced Features
+1. Multi-source knowledge synthesis
+2. Fact verification
+3. Response quality scoring
+
+---
+
+## WHAT'S ALREADY WORKING
+
+| Feature | Status |
+|---------|--------|
+| Book Q&A | ✅ Working |
+| Wikipedia search | ✅ Working |
+| Conversations | ✅ Working |
+| Context tracking | ✅ Working |
+| Personal statements | ✅ Working |
+| Emotional responses | ✅ Working |
+| Multi-book training | ✅ Working |
+| Progress bars | ✅ Working |
+
+---
+
+## NEXT STEPS (Immediate)
+
+1. **Improve response generation** — Make DistilGPT2 rewrite Wikipedia text naturally
+2. **Add source attribution** — Tell users where info comes from
+3. **Fix context handling** — Better pronoun resolution
+
+---
+
+## WHAT MAKES A TRUE LLM CHATBOT
+
+| Feature | Current | LLM |
+|---------|---------|-----|
+| Knowledge | 20 books + Wikipedia | Trained on internet |
+| Response quality | Wikipedia text + templates | Natural, fluent prose |
+| Context length | 10 turns | 100+ turns |
+| Reasoning | Simple lookup | Chain-of-thought |
+| Personality | Generic | Adaptive tone |
+| Memory | Last 10 turns | Long-term preferences |
+| Source attribution | None | Always cited |
+| Multi-source synthesis | No | Yes |

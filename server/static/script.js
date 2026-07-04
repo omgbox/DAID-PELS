@@ -25,9 +25,7 @@ function generateSessionId() {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    loadHistory();
-    loadStats();
-    renderSessions();
+    console.log('DOM loaded, initializing...');
     
     // Auto-resize textarea
     messageInput.addEventListener('input', autoResize);
@@ -38,12 +36,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
+    // Focus input
+    messageInput.focus();
+    
+    // Load data
+    loadHistory();
+    loadStats();
+    renderSessions();
+    
     // Auto-refresh stats
     setInterval(() => {
         if (statsPanel.classList.contains('show')) {
             loadStats();
         }
     }, 2000);
+    
+    console.log('Initialization complete');
 });
 
 function autoResize() {
@@ -82,6 +90,7 @@ function newSession() {
 }
 
 function renderSessions() {
+    if (!sessionsList) return;
     sessionsList.innerHTML = sessions.map((s, i) => `
         <div class="session-item ${s.id === currentSession ? 'active' : ''}" onclick="switchSession('${s.id}')">
             <div class="session-name">${s.name}</div>
@@ -129,10 +138,12 @@ function showSnackbar(source, text) {
 // Load history
 async function loadHistory() {
     try {
-        const response = await fetch(`/history?session_id=${currentSession}`);
+        console.log('Loading history for session:', currentSession);
+        const response = await fetch('/history?session_id=' + currentSession);
         const data = await response.json();
         
         if (data.history && data.history.length > 0) {
+            console.log('Loaded', data.history.length, 'messages');
             welcomeScreen.style.display = 'none';
             messagesContainer.style.display = 'block';
             
@@ -141,11 +152,12 @@ async function loadHistory() {
                 addMessageToChat(msg.bot, 'bot', msg.time, msg.source);
             });
         } else {
+            console.log('No history, showing welcome');
             welcomeScreen.style.display = 'flex';
             messagesContainer.style.display = 'none';
         }
     } catch (error) {
-        console.log('Failed to load history');
+        console.log('Failed to load history:', error);
     }
 }
 
@@ -159,7 +171,9 @@ async function loadStats() {
             lastStats = data;
         }
     } catch (error) {
-        statsContent.innerHTML = '<div class="loading">Failed to load stats</div>';
+        if (statsContent) {
+            statsContent.innerHTML = '<div class="loading">Failed to load stats</div>';
+        }
     }
 }
 
@@ -210,19 +224,17 @@ function renderStats(data) {
                 <div class="nn-details">
                     <span>${nn.architecture}</span>
                     <span>${nn.weights} weights</span>
-                    ${nn.training_count !== undefined ? `<span>Trained: ${nn.training_count}x</span>` : ''}
+                    ${nn.training_count !== undefined ? '<span>Trained: ' + nn.training_count + 'x</span>' : ''}
                 </div>
-                ${nn.training_count !== undefined ? `
-                <div class="progress-bar">
-                    <div class="progress-fill neural" style="width: ${nnProgress}%"></div>
-                </div>
-                ` : ''}
+                ${nn.training_count !== undefined ? '<div class="progress-bar"><div class="progress-fill neural" style="width: ' + nnProgress + '%"></div></div>' : ''}
             </div>
         `;
     }
     
     html += '</div>';
-    statsContent.innerHTML = html;
+    if (statsContent) {
+        statsContent.innerHTML = html;
+    }
 }
 
 function formatUptime(seconds) {
@@ -230,15 +242,20 @@ function formatUptime(seconds) {
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
     
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    if (minutes > 0) return `${minutes}m ${secs}s`;
-    return `${secs}s`;
+    if (hours > 0) return hours + 'h ' + minutes + 'm';
+    if (minutes > 0) return minutes + 'm ' + secs + 's';
+    return secs + 's';
 }
 
 // Messages
 async function sendMessage() {
     const message = messageInput.value.trim();
-    if (!message) return;
+    if (!message) {
+        console.log('Empty message, ignoring');
+        return;
+    }
+
+    console.log('Sending message:', message);
 
     // Switch to message view
     welcomeScreen.style.display = 'none';
@@ -251,54 +268,68 @@ async function sendMessage() {
     sendBtn.disabled = true;
 
     // Show typing
-    typing.classList.add('show');
+    const typingEl = document.getElementById('typing');
+    if (typingEl) typingEl.classList.add('show');
+    
     showSnackbar('thinking', 'Processing...');
     chat.scrollTop = chat.scrollHeight;
 
     try {
+        console.log('Calling /chat endpoint...');
         const response = await fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, session_id: currentSession })
+            body: JSON.stringify({ message: message, session_id: currentSession })
         });
 
+        console.log('Response received:', response.status);
         const data = await response.json();
+        console.log('Data:', data);
         
-        typing.classList.remove('show');
-        showSnackbar(data.source, `From ${data.source === 'wikipedia' ? 'Wikipedia' : data.source === 'books' ? 'Books' : 'Local'}`);
+        // Hide typing
+        if (typingEl) typingEl.classList.remove('show');
+        
+        // Show source
+        showSnackbar(data.source, 'From ' + (data.source === 'wikipedia' ? 'Wikipedia' : data.source === 'books' ? 'Books' : 'Local'));
+        
+        // Add bot message
         addMessageToChat(data.response, 'bot', data.response_time, data.source);
         
-        if (statsPanel.classList.contains('show')) loadStats();
+        // Update stats
+        if (statsPanel.classList.contains('show')) {
+            loadStats();
+        }
     } catch (error) {
-        typing.classList.remove('show');
+        console.error('Error:', error);
+        if (typingEl) typingEl.classList.remove('show');
         showSnackbar('local', 'Error occurred');
-        addMessageToChat('Sorry, something went wrong.', 'bot');
+        addMessageToChat('Sorry, something went wrong. Please try again.', 'bot');
     }
 
     sendBtn.disabled = false;
     messageInput.focus();
 }
 
-function addMessageToChat(text, type, responseTime = null, source = null) {
+function addMessageToChat(text, type, responseTime, source) {
     const div = document.createElement('div');
-    div.className = `message ${type}`;
+    div.className = 'message ' + type;
     
-    let content = '';
+    var content = '';
     
     if (type === 'bot' && text.includes('— Source:')) {
-        const parts = text.split('— Source:');
-        content = `<div>${parts[0].trim()}</div><div class="source">— Source:${parts[1]}</div>`;
+        var parts = text.split('— Source:');
+        content = '<div>' + parts[0].trim() + '</div><div class="source">— Source:' + parts[1] + '</div>';
     } else {
         content = text;
     }
     
-    if (type === 'bot' && responseTime !== null) {
-        content += `<div class="response-time">${responseTime.toFixed(2)}s</div>`;
+    if (type === 'bot' && responseTime != null) {
+        content += '<div class="response-time">' + responseTime.toFixed(2) + 's</div>';
     }
     
     if (type === 'bot' && source) {
-        const badge = source === 'wikipedia' ? '🌐 Wikipedia' : source === 'books' ? '📚 Books' : '💬 Local';
-        content += `<div class="source-badge">${badge}</div>`;
+        var badge = source === 'wikipedia' ? '🌐 Wikipedia' : source === 'books' ? '📚 Books' : '💬 Local';
+        content += '<div class="source-badge">' + badge + '</div>';
     }
     
     div.innerHTML = content;

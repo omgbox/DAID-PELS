@@ -24,8 +24,10 @@ BOOK_PATH = os.environ.get(
 )
 DICTIONARY_PATH = os.environ.get(
     'BOOKBOT_DICT_PATH',
-    str(PROJECT_ROOT / "English_dictionary.csv")
+    str(PROJECT_ROOT / "combined_english_dictionary.csv")
 )
+WORD_LIST_PATH = str(PROJECT_ROOT / "words_466k.txt")
+OLD_ENGLISH_DICT_PATH = str(PROJECT_ROOT / "old_english_dictionary.csv")
 DATABASE_PATH = os.environ.get(
     'BOOKBOT_DB_PATH',
     str(PROJECT_ROOT / "bookbot.db")

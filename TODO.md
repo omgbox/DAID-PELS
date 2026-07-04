@@ -186,14 +186,21 @@ The system's actual intelligence comes from the **rule-based pipeline**: BM25 + 
 | Emotional responses | ✅ Working |
 | Multi-book training | ✅ Working |
 | Progress bars | ✅ Working |
+| T5 Paraphrase rewriter | ✅ Working |
+| Source attribution | ✅ Working |
+| Pronoun resolution | ✅ Working |
+| Response quality scoring | ✅ Working |
+| Multi-source synthesis | ✅ Working |
+| 466K word list | ✅ Integrated |
+| Old English dictionary | ✅ Integrated |
 
 ---
 
 ## NEXT STEPS (Immediate)
 
-1. **Improve response generation** — Use Pegasus for paraphrasing
-2. **Add source attribution** — Tell users where info comes from
-3. **Fix context handling** — Better pronoun resolution
+1. **Improve Wikipedia query extraction** — Get specific answers, not just summaries
+2. **Add more Old English topics** — Expand Wikipedia mappings for OE vocabulary
+3. **Test Old English queries** — "What does wyrd mean?" → "fate, destiny"
 
 ---
 
@@ -219,11 +226,13 @@ The system's actual intelligence comes from the **rule-based pipeline**: BM25 + 
 
 | Feature | Current | LLM |
 |---------|---------|-----|
-| Knowledge | 20 books + Wikipedia | Trained on internet |
-| Response quality | Wikipedia text + templates | Natural, fluent prose |
+| Knowledge | 20 books + Wikipedia + 491K dictionary | Trained on internet |
+| Response quality | T5 Paraphrase (natural, fluent) | Natural, fluent prose |
 | Context length | 10 turns | 100+ turns |
 | Reasoning | Simple lookup | Chain-of-thought |
 | Personality | Generic | Adaptive tone |
 | Memory | Last 10 turns | Long-term preferences |
-| Source attribution | None | Always cited |
-| Multi-source synthesis | No | Yes |
+| Source attribution | ✅ Always cited | Always cited |
+| Multi-source synthesis | ✅ Yes | Yes |
+| Word validation | 466K words (was 147K) | Full dictionary |
+| Old English | ✅ 42K OE words | N/A |

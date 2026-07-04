@@ -25,11 +25,14 @@ def stream_dictionary(dict_path: str, batch_size: int = 1000) -> Generator[List[
     with open(dict_path, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for i, row in enumerate(reader):
-            word = row.get('Word', '')
-            pos = row.get('POS', '').strip('"')
-            definition = row.get('Definition', '').strip('"')
+            # Support both old format (Word, POS, Definition) and new format (word, pos, definition, language)
+            word = row.get('word', '') or row.get('Word', '')
+            pos = (row.get('pos', '') or row.get('POS', '')).strip('"')
+            definition = (row.get('definition', '') or row.get('Definition', '')).strip('"')
+            language = row.get('language', 'english')
 
-            if word and definition:
+            # Only include English words with definitions (skip Old English and word-list-only entries)
+            if word and definition and language == 'english':
                 batch.append({
                     'word': word,
                     'pos_canonical': pos,

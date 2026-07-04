@@ -40,6 +40,11 @@ Thumbs.db
 # Downloaded assets (large files, not for distribution)
 books/
 English_dictionary.csv
+combined_english_dictionary.csv
+old_english_dictionary.csv
+words_466k.txt
+oe_bosworth_toller.csv
+oe_dictionary.json
 *.txt
 !requirements.txt
 

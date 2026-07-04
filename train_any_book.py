@@ -37,13 +37,13 @@ db.initialize_schema()
 # Load dictionary
 print("[1/9] Loading dictionary...")
 t = time.time()
-with open('English_dictionary.csv', 'r', encoding='utf-8') as f:
+with open('combined_english_dictionary.csv', 'r', encoding='utf-8') as f:
     reader = csv.DictReader(f)
-    defs = [{'word': r.get('Word',''), 'pos_canonical': r.get('POS','').strip('"'),
-             'pos_original': r.get('POS','').strip('"'), 'definition': r.get('Definition','').strip('"'),
-             'word_lower': r.get('Word','').lower(), 'word_length': len(r.get('Word','')),
-             'def_word_count': len(r.get('Definition','').split()), 'entry_index': i}
-            for i, r in enumerate(reader) if r.get('Word') and r.get('Definition')]
+    defs = [{'word': r.get('word',''), 'pos_canonical': r.get('pos','').strip('"'),
+             'pos_original': r.get('pos','').strip('"'), 'definition': r.get('definition','').strip('"'),
+             'word_lower': r.get('word','').lower(), 'word_length': len(r.get('word','')),
+             'def_word_count': len(r.get('definition','').split()), 'entry_index': i}
+            for i, r in enumerate(reader) if r.get('word') and r.get('definition') and r.get('language','english') == 'english']
 db.insert_many('definitions', defs)
 print(f"  {len(defs):,} entries in {time.time()-t:.1f}s")
 

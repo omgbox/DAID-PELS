@@ -3,7 +3,11 @@ Download Assets for DAID-PELS
 
 Downloads:
 1. English dictionary CSV (175K entries)
-2. Pride and Prejudice clean text (Project Gutenberg)
+2. 466K word list (370K unique words for validation)
+3. Old English dictionary (42K entries)
+4. Pride and Prejudice clean text (Project Gutenberg)
+
+Then merges dictionaries into combined_english_dictionary.csv
 
 Usage:
     python download_assets.py
@@ -20,6 +24,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent
 BOOKS_DIR = PROJECT_ROOT / "books"
 DICT_PATH = PROJECT_ROOT / "English_dictionary.csv"
+WORD_LIST_PATH = PROJECT_ROOT / "words_466k.txt"
+OLD_ENGLISH_DICT_PATH = PROJECT_ROOT / "old_english_dictionary.csv"
+COMBINED_DICT_PATH = PROJECT_ROOT / "combined_english_dictionary.csv"
 PRIDE_PATH = BOOKS_DIR / "pride_and_prejudice_clean.txt"
 
 
@@ -134,6 +141,143 @@ def download_pride_and_prejudice():
         return False
 
 
+def download_word_list():
+    """Download 466K word list from dwyl/english-words."""
+    if WORD_LIST_PATH.exists():
+        print(f"  Word list already exists: {WORD_LIST_PATH}")
+        return True
+
+    url = "https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"
+    if download_file(url, WORD_LIST_PATH, "466K word list"):
+        # Verify
+        with open(WORD_LIST_PATH, 'r', encoding='utf-8') as f:
+            words = [line.strip() for line in f if line.strip()]
+        print(f"  Verified: {len(words):,} words")
+        return True
+    return False
+
+
+def download_old_english_dictionary():
+    """Download Old English dictionary from fhardison/old-english-dict."""
+    if OLD_ENGLISH_DICT_PATH.exists():
+        print(f"  Old English dictionary already exists: {OLD_ENGLISH_DICT_PATH}")
+        return True
+
+    # Download raw JSON first
+    import json
+    import re
+
+    json_path = PROJECT_ROOT / "oe_raw.json"
+    url = "https://raw.githubusercontent.com/fhardison/old-english-dict/main/data/oe.json"
+
+    if not download_file(url, json_path, "Old English dictionary (raw JSON)"):
+        return False
+
+    # Parse and convert to CSV
+    print("  Parsing Old English dictionary...")
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        keys = [k for k in data.keys() if not k.startswith('##')]
+
+        def clean_html(text):
+            text = re.sub(r'<[^>]+>', '', text)
+            return text.strip()
+
+        entries = {}
+        for k in keys:
+            val = data[k]
+            if isinstance(val, str):
+                headword = k.split(' (')[0].strip()
+                definition = clean_html(val)
+                key = headword.lower()
+                if key not in entries or len(definition) > len(entries[key]):
+                    entries[key] = definition
+
+        with open(OLD_ENGLISH_DICT_PATH, 'w', encoding='utf-8', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['headword', 'definition'])
+            for hw, defn in sorted(entries.items()):
+                writer.writerow([hw, defn])
+
+        json_path.unlink()  # Remove raw JSON
+        print(f"  Saved: {OLD_ENGLISH_DICT_PATH} ({len(entries):,} entries)")
+        return True
+
+    except Exception as e:
+        print(f"  Error parsing Old English dictionary: {e}")
+        return False
+
+
+def merge_dictionaries():
+    """Merge all dictionaries into combined_english_dictionary.csv."""
+    if COMBINED_DICT_PATH.exists():
+        print(f"  Combined dictionary already exists: {COMBINED_DICT_PATH}")
+        return True
+
+    print("  Merging dictionaries...")
+    entries = {}
+
+    # 1. Load current English dictionary (has definitions)
+    if DICT_PATH.exists():
+        with open(DICT_PATH, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                word = row.get('Word', '').strip()
+                pos = row.get('POS', '').strip().strip('"')
+                definition = row.get('Definition', '').strip().strip('"')
+                if word and definition:
+                    key = word.lower()
+                    if key not in entries or len(definition) > len(entries[key].get('definition', '')):
+                        entries[key] = {
+                            'word': word, 'pos': pos,
+                            'definition': definition, 'language': 'english'
+                        }
+        print(f"    English (with definitions): {len(entries):,}")
+
+    # 2. Load 466K word list (word validation)
+    if WORD_LIST_PATH.exists():
+        added = 0
+        with open(WORD_LIST_PATH, 'r', encoding='utf-8') as f:
+            for line in f:
+                word = line.strip()
+                if word and word.lower() not in entries:
+                    entries[word.lower()] = {
+                        'word': word, 'pos': '', 'definition': '',
+                        'language': 'english'
+                    }
+                    added += 1
+        print(f"    Added {added:,} new words from word list")
+
+    # 3. Load Old English dictionary
+    oe_count = 0
+    if OLD_ENGLISH_DICT_PATH.exists():
+        with open(OLD_ENGLISH_DICT_PATH, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                headword = row.get('headword', '').strip()
+                definition = row.get('definition', '').strip()
+                if headword:
+                    entries[f"oe_{headword.lower()}"] = {
+                        'word': headword, 'pos': 'OE',
+                        'definition': definition[:500] if definition else '',
+                        'language': 'old_english'
+                    }
+                    oe_count += 1
+        print(f"    Old English: {oe_count:,}")
+
+    # Save
+    with open(COMBINED_DICT_PATH, 'w', encoding='utf-8', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=['word', 'pos', 'definition', 'language'])
+        writer.writeheader()
+        for key in sorted(entries.keys()):
+            writer.writerow(entries[key])
+
+    print(f"  Saved combined dictionary: {len(entries):,} total entries")
+    return True
+
+
 def main():
     print("\n" + "=" * 60)
     print("  DAID-PELS Asset Downloader")
@@ -141,20 +285,37 @@ def main():
 
     success = True
 
-    print("\n[1/2] Dictionary")
+    print("\n[1/5] English Dictionary")
     if not download_dictionary():
         success = False
 
-    print("\n[2/2] Sample Book (Pride and Prejudice)")
+    print("\n[2/5] 466K Word List")
+    if not download_word_list():
+        success = False
+
+    print("\n[3/5] Old English Dictionary")
+    if not download_old_english_dictionary():
+        success = False
+
+    print("\n[4/5] Merge Dictionaries")
+    if not merge_dictionaries():
+        success = False
+
+    print("\n[5/5] Sample Book (Pride and Prejudice)")
     if not download_pride_and_prejudice():
         success = False
 
     print("\n" + "=" * 60)
     if success:
         print("  All assets downloaded successfully!")
+        print("\n  Dictionary stats:")
+        print("    - English (with definitions): ~147K words")
+        print("    - English (word list only): ~302K words")
+        print("    - Old English: ~42K words")
+        print("    - Total: ~491K entries")
         print("\n  Next steps:")
-        print("    python train_pride.py    # Train on Pride and Prejudice")
-        print("    python -m bookbot.main query   # Start querying")
+        print("    python train_all_books.py    # Train on all books")
+        print("    python -m bookbot.main query # Start querying")
     else:
         print("  Some assets failed to download.")
         print("  See errors above for details.")

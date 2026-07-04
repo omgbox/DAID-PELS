@@ -288,15 +288,16 @@ def main():
 
     # Load dictionary
     print('Loading dictionary...')
-    dict_path = 'English_dictionary.csv'
+    dict_path = 'combined_english_dictionary.csv'
     with open(dict_path, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         definitions = []
         for i, row in enumerate(reader):
-            word = row.get('Word', '')
-            pos = row.get('POS', '').strip('"')
-            definition = row.get('Definition', '').strip('"')
-            if word and definition:
+            word = row.get('word', '')
+            pos = row.get('pos', '').strip('"')
+            definition = row.get('definition', '').strip('"')
+            language = row.get('language', 'english')
+            if word and definition and language == 'english':
                 definitions.append({
                     'word': word,
                     'pos_canonical': pos,

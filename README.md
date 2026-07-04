@@ -47,7 +47,17 @@ That's great! Cooking is interesting. Tell me more about it!
 
 ---
 
-## What's New (v2.1)
+## What's New (v2.2)
+
+### Expanded Dictionary (491K+ entries)
+- **466K word list** — 370K unique English words for validation (was 147K)
+- **Old English dictionary** — 42K Anglo-Saxon words with definitions
+- **Combined dictionary** — merged into single file for all training
+
+### Old English / Anglo-Saxon Support
+- **Old English words** — recognize and define OE terms (wyrd, wergild, thane, etc.)
+- **Wikipedia mappings** — auto-search for Old English, Anglo-Saxon, Beowulf topics
+- **Historical vocabulary** — witan, fyrd, burh, ealdorman, and more
 
 ### Response Quality
 - **T5 Paraphrase rewriter** — natural, fluent responses (not robotic)

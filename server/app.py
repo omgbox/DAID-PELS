@@ -7,8 +7,10 @@ import sys
 import os
 from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add parent directory to path (C:\projects)
+parent_dir = str(Path(__file__).parent.parent.parent)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
 from flask import Flask, render_template, request, jsonify
 
@@ -26,7 +28,8 @@ def create_app():
     def get_chatbot():
         nonlocal _chatbot
         if _chatbot is None:
-            from query.conversational_ai import ConversationalAI
+            # Import via bookbot junction (C:\projects\bookbot -> C:\projects\DAID-PELS)
+            from bookbot.query.conversational_ai import ConversationalAI
             _chatbot = ConversationalAI()
         return _chatbot
     

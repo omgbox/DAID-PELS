@@ -1,13 +1,15 @@
 """
 DAID-PELS Server Entry Point
-Run with: python -m server
+Run from C:\projects: python -m DAID-PELS.server
 """
 
 import sys
+import os
 from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Change to C:\projects directory (where bookbot junction exists)
+os.chdir(str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, os.getcwd())
 
 from .app import create_app
 

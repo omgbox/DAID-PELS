@@ -195,7 +195,7 @@ class ConversationalAI:
         response = self._respond(message, intent, facts, sources, confidence)
 
         # Step 6: Remember this conversation
-        self._remember(message, response)
+        self._remember(message, response, intent.get('topic', ''))
 
         return response
 
@@ -327,7 +327,16 @@ class ConversationalAI:
             'ml': 'machine learning',
             'vr': 'virtual reality',
             'ar': 'augmented reality',
+            'aerial phenomena': 'unidentified aerial phenomenon',
+            'uap': 'unidentified aerial phenomenon',
+            'uaps': 'unidentified aerial phenomenon',
         }
+
+        # Follow-up detection: use conversation context
+        if self._history and self._is_followup(m):
+            topic = self._resolve_followup(m)
+            if topic:
+                return self._expand_topic(topic, expand_map)
 
         # Pattern: "how many X does Y have" -> Y
         match = re.search(r'how many\s+\w+\s+(?:does|do|did)\s+(.+?)\s+(?:have|has|had)', m)
@@ -381,6 +390,57 @@ class ConversationalAI:
                 topic = topic.replace(key, val)
         return topic
 
+    def _is_followup(self, message: str) -> bool:
+        """Detect if message is a follow-up to previous topic."""
+        followup_patterns = [
+            r'^tell me more',
+            r'^what about',
+            r'^how about',
+            r'^and\b',
+            r'^also\b',
+            r'^what else',
+            r'^anything else',
+            r'^more about',
+            r'^elaborate',
+            r'^continue',
+            r'^go on',
+            r'^and the',
+            r'^what about the',
+            r'^tell me about the',
+        ]
+        return any(re.match(p, message) for p in followup_patterns)
+
+    def _resolve_followup(self, message: str) -> Optional[str]:
+        """
+        Resolve follow-up using conversation context.
+        Combines current topic with previous context.
+        """
+        if not self._history:
+            return None
+
+        last_query = self._history[-1]['query'].lower()
+        last_topic = self._history[-1].get('topic', '')
+
+        # Extract what the user is asking about now
+        current_topic = None
+        match = re.search(r'tell me (?:more )?about (?:the )?(.+)', message)
+        if match:
+            current_topic = match.group(1).strip()
+        else:
+            match = re.search(r'what about (?:the )?(.+)', message)
+            if match:
+                current_topic = match.group(1).strip()
+
+        if current_topic and last_topic:
+            # Combine: "aerial phenomena" + "unidentified flying object" context
+            # Search for combined topic
+            combined = f"{current_topic} {last_topic}"
+            return combined
+        elif current_topic:
+            return current_topic
+
+        return None
+
     def _get_facts(self, topic: str) -> Optional[str]:
         """Get facts about a topic from Wikipedia."""
         wiki = self._get_wiki()
@@ -427,6 +487,11 @@ class ConversationalAI:
             'quantum computing': 'quantum computing',
             'ufo': 'unidentified flying object',
             'ufos': 'unidentified flying object',
+            'aerial phenomena': 'unidentified aerial phenomenon',
+            'aerial phenomenon': 'unidentified aerial phenomenon',
+            'uap': 'unidentified aerial phenomenon',
+            'uaps': 'unidentified aerial phenomenon',
+            'unidentified aerial phenomena': 'unidentified aerial phenomenon',
         }
 
         # Try mapped term first if available
@@ -771,9 +836,9 @@ class ConversationalAI:
         
         return entities
 
-    def _remember(self, query: str, response: str):
+    def _remember(self, query: str, response: str, topic: str = ''):
         """Remember conversation for context."""
-        self._history.append({'query': query, 'response': response})
+        self._history.append({'query': query, 'response': response, 'topic': topic})
         if len(self._history) > 10:
             self._history = self._history[-10:]
         

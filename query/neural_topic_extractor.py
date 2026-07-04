@@ -33,7 +33,7 @@ class NeuralTopicExtractor:
         'this', 'that', 'these', 'those', 'it', 'its',
     }
     
-    def __init__(self, input_dim: int = 12, hidden_dim: int = 24):
+    def __init__(self, input_dim: int = 16, hidden_dim: int = 64):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         
@@ -91,11 +91,37 @@ class NeuralTopicExtractor:
         # 10. Is last word
         features.append(1.0 if position == total_words - 1 else 0.0)
         
-        # 11. Previous word is stop word (might be subject)
-        features.append(0.0)  # Placeholder, computed in context
+        # 11. Previous word is stop word (subject hint)
+        if position > 0:
+            prev_word = query.split()[position - 1] if position <= len(query.split()) else ''
+            features.append(1.0 if prev_word.lower() in self.STOP_WORDS else 0.0)
+        else:
+            features.append(0.0)
         
-        # 12. Learned word score
+        # 12. Next word is stop word (object hint)
+        if position < total_words - 1:
+            next_word = query.split()[position + 1] if position + 1 < len(query.split()) else ''
+            features.append(1.0 if next_word.lower() in self.STOP_WORDS else 0.0)
+        else:
+            features.append(0.0)
+        
+        # 13. Learned word score
         features.append(self.word_scores.get(word.lower(), 0.5))
+        
+        # 14. Word appears in title case in original query
+        original_words = re.findall(r'\w+', query)
+        if position < len(original_words):
+            features.append(1.0 if original_words[position][0].isupper() else 0.0)
+        else:
+            features.append(0.0)
+        
+        # 15. Is question word
+        question_words = {'what', 'who', 'when', 'where', 'why', 'how', 'which'}
+        features.append(1.0 if word.lower() in question_words else 0.0)
+        
+        # 16. Is verb-like (contains common verb patterns)
+        verb_suffixes = {'ed', 'ing', 'es', 's'}
+        features.append(1.0 if any(word.lower().endswith(s) for s in verb_suffixes) else 0.0)
         
         return features[:self.input_dim]
     

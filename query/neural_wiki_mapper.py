@@ -15,15 +15,15 @@ logger = logging.getLogger('bookbot.neural_wiki_mapper')
 
 class NeuralWikipediaMapper:
     """
-    Small neural network that learns query → Wikipedia page mappings.
+    Neural network that learns query → Wikipedia page mappings.
     
     Architecture:
     - Feature extraction (word overlap, n-grams, edit distance)
-    - 2-layer feedforward network
+    - 2-layer feedforward network with 128 hidden neurons
     - Online learning from successful lookups
     """
     
-    def __init__(self, input_dim: int = 16, hidden_dim: int = 32):
+    def __init__(self, input_dim: int = 20, hidden_dim: int = 128):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         
@@ -150,7 +150,83 @@ class NeuralWikipediaMapper:
         else:
             features.append(0.0)
         
+        # 17. Title words in query (proportion)
+        if title_words:
+            features.append(len([w for w in title_words if w in query_words]) / len(title_words))
+        else:
+            features.append(0.0)
+        
+        # 18. Longest common substring length
+        lcs_len = self._longest_common_substring(query_lower, title_lower)
+        features.append(lcs_len / max(len(query_lower), len(title_lower), 1))
+        
+        # 19. Soundex similarity
+        features.append(1.0 if self._soundex(query_lower.split()[0] if query_lower.split() else '') == 
+                       self._soundex(title_lower.split()[0] if title_lower.split() else '') else 0.0)
+        
+        # 20. Levenshtein similarity per word
+        q_tokens = query_lower.split()
+        t_tokens = title_lower.split()
+        if q_tokens and t_tokens:
+            avg_sim = sum(max(self._word_similarity(q, t) for t in t_tokens) for q in q_tokens) / len(q_tokens)
+            features.append(avg_sim)
+        else:
+            features.append(0.0)
+        
         return features[:self.input_dim]  # Ensure correct dimension
+    
+    def _longest_common_substring(self, s1: str, s2: str) -> int:
+        """Find length of longest common substring."""
+        if not s1 or not s2:
+            return 0
+        m, n = len(s1), len(s2)
+        dp = [[0] * (n + 1) for _ in range(m + 1)]
+        max_len = 0
+        for i in range(1, m + 1):
+            for j in range(1, n + 1):
+                if s1[i-1] == s2[j-1]:
+                    dp[i][j] = dp[i-1][j-1] + 1
+                    max_len = max(max_len, dp[i][j])
+        return max_len
+    
+    def _soundex(self, word: str) -> str:
+        """Simple Soundex implementation."""
+        if not word:
+            return ""
+        word = word.lower()
+        # First letter
+        soundex = word[0].upper()
+        # Mapping
+        mapping = {
+            'b': '1', 'f': '1', 'p': '1', 'v': '1',
+            'c': '2', 'g': '2', 'j': '2', 'k': '2', 'q': '2', 's': '2', 'x': '2', 'z': '2',
+            'd': '3', 't': '3',
+            'l': '4',
+            'm': '5', 'n': '5',
+            'r': '6',
+        }
+        prev = mapping.get(word[0], '0')
+        for char in word[1:]:
+            code = mapping.get(char, '0')
+            if code != '0' and code != prev:
+                soundex += code
+                if len(soundex) == 4:
+                    break
+            prev = code
+        # Pad with zeros
+        soundex = (soundex + '000')[:4]
+        return soundex
+    
+    def _word_similarity(self, word1: str, word2: str) -> float:
+        """Calculate similarity between two words."""
+        if word1 == word2:
+            return 1.0
+        # Simple character overlap
+        set1 = set(word1)
+        set2 = set(word2)
+        if not set1 or not set2:
+            return 0.0
+        return len(set1 & set2) / len(set1 | set2)
     
     def _get_ngrams(self, text: str, n: int) -> set:
         """Get character n-grams."""

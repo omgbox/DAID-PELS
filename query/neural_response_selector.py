@@ -23,7 +23,7 @@ class NeuralResponseSelector:
     - Output: quality score
     """
     
-    def __init__(self, input_dim: int = 16, hidden1: int = 64, hidden2: int = 32):
+    def __init__(self, input_dim: int = 16, hidden1: int = 128, hidden2: int = 64):
         self.input_dim = input_dim
         self.hidden1 = hidden1
         self.hidden2 = hidden2

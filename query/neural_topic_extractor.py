@@ -33,7 +33,7 @@ class NeuralTopicExtractor:
         'this', 'that', 'these', 'those', 'it', 'its',
     }
     
-    def __init__(self, input_dim: int = 24, hidden1: int = 128, hidden2: int = 64):
+    def __init__(self, input_dim: int = 24, hidden1: int = 256, hidden2: int = 128):
         self.input_dim = input_dim
         self.hidden1 = hidden1
         self.hidden2 = hidden2

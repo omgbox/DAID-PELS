@@ -23,7 +23,7 @@ class NeuralWikipediaMapper:
     - Online learning from successful lookups
     """
     
-    def __init__(self, input_dim: int = 20, hidden1: int = 256, hidden2: int = 128):
+    def __init__(self, input_dim: int = 20, hidden1: int = 512, hidden2: int = 256):
         self.input_dim = input_dim
         self.hidden1 = hidden1
         self.hidden2 = hidden2

@@ -223,6 +223,13 @@ python run_server.py
 | Multi-source synthesis | ✅ Working | - |
 | 466K word list | ✅ Integrated | - |
 | Old English dictionary | ✅ Integrated | - |
+| Neural Wikipedia mapper | ✅ Trained (2,279 mappings) | Wikipedia Mapper |
+| Neural topic extractor | ✅ Trained (494 words) | Topic Extractor |
+| Neural intent classifier | ✅ Trained (2,272 patterns) | Intent Classifier |
+| Web interface | ✅ Working | - |
+| Session persistence | ✅ Working | - |
+| Wikipedia link crawler | ✅ Working | - |
+| Old English dictionary | ✅ Integrated | - |
 | Neural Wikipedia mapper | ✅ Working | Wikipedia Mapper |
 | Neural topic extractor | ✅ Working | Topic Extractor |
 | Neural intent classifier | ✅ Working | Intent Classifier |
@@ -238,8 +245,8 @@ python run_server.py
 
 ## NEXT STEPS (Immediate)
 
-1. **More training data** — Use the bot more to train neural networks
-2. **Test Old English queries** — "What does wyrd mean?" → "fate, destiny"
+1. **Run wiki_crawler.py more times** — Accumulate more training data (currently 2,279 mappings)
+2. **Improve Wikipedia search** — Better handling of disambiguation pages
 3. **Add more follow-up patterns** — "and also", "what else", etc.
 4. **Improve verb detection** — Better extraction of action words
 5. **Add more neural components** — Sentiment analysis, coreference, etc.

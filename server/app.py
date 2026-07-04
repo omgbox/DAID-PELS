@@ -1,200 +1,79 @@
-"""
-Flask Application Factory
-Creates and configures the Flask app.
-"""
-
-import sys
-import os
-import time
-import json
-import psutil
+"""Flask app for DAID-PELS web interface."""
+import sys, os, time, json
 from pathlib import Path
 from collections import defaultdict
 
-# Add parent directory to path (C:\projects)
-parent_dir = str(Path(__file__).parent.parent.parent)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify
+import psutil
 
 
 def create_app():
-    """Create and configure the Flask application."""
-    app = Flask(__name__, 
-                template_folder='templates',
-                static_folder='static')
+    app = Flask(__name__, template_folder='templates', static_folder='static')
     app.secret_key = os.urandom(24)
-    
-    # Lazy-load chatbot
+
     _chatbot = None
-    _stats = {
-        'total_queries': 0,
-        'total_time': 0,
-        'avg_response_time': 0,
-        'start_time': time.time(),
-    }
-    
-    # Chat history storage (per session)
-    _chat_history = defaultdict(list)
-    
+    _stats = {'total_queries': 0, 'total_time': 0, 'avg_response_time': 0, 'start_time': time.time()}
+    _history = defaultdict(list)
+
     def get_chatbot():
         nonlocal _chatbot
         if _chatbot is None:
-            # Import via bookbot junction (C:\projects\bookbot -> C:\projects\DAID-PELS)
             from bookbot.query.conversational_ai import ConversationalAI
             _chatbot = ConversationalAI()
         return _chatbot
-    
+
     @app.route('/')
     def index():
         return render_template('chat.html')
-    
+
     @app.route('/chat', methods=['POST'])
     def chat():
         data = request.get_json()
         message = data.get('message', '')
-        session_id = data.get('session_id', 'default')
-        
+        sid = data.get('session_id', 'default')
         if not message:
             return jsonify({'response': 'Please enter a message.'})
-        
         try:
-            start_time = time.time()
-            chatbot = get_chatbot()
-            response = chatbot.chat(message)
-            response_time = time.time() - start_time
-            
-            # Update stats
+            t = time.time()
+            bot = get_chatbot()
+            response = bot.chat(message)
+            rt = time.time() - t
             _stats['total_queries'] += 1
-            _stats['total_time'] += response_time
+            _stats['total_time'] += rt
             _stats['avg_response_time'] = _stats['total_time'] / _stats['total_queries']
-            
-            # Determine source from response
-            source = 'local'
-            if '— Source: Wikipedia' in response or '— Sources:' in response:
-                source = 'wikipedia'
-            elif '— Source: Book database' in response:
-                source = 'books'
-            
-            # Store in history
-            _chat_history[session_id].append({
-                'user': message,
-                'bot': response,
-                'source': source,
-                'time': round(response_time, 3),
-                'timestamp': time.time()
-            })
-            
-            # Keep only last 50 messages per session
-            if len(_chat_history[session_id]) > 50:
-                _chat_history[session_id] = _chat_history[session_id][-50:]
-            
-            return jsonify({
-                'response': response,
-                'response_time': round(response_time, 3),
-                'source': source,
-                'stats': _stats
-            })
+            source = 'wikipedia' if 'Wikipedia' in response else 'books' if 'Book database' in response else 'local'
+            _history[sid].append({'user': message, 'bot': response, 'source': source, 'time': round(rt, 3)})
+            if len(_history[sid]) > 50:
+                _history[sid] = _history[sid][-50:]
+            return jsonify({'response': response, 'response_time': round(rt, 3), 'source': source})
         except Exception as e:
-            return jsonify({'response': f'Error: {str(e)}'})
-    
-    @app.route('/history', methods=['GET'])
-    def get_history():
-        session_id = request.args.get('session_id', 'default')
-        history = _chat_history.get(session_id, [])
-        return jsonify({'history': history})
-    
-    @app.route('/history/clear', methods=['POST'])
-    def clear_history():
-        data = request.get_json()
-        session_id = data.get('session_id', 'default')
-        _chat_history[session_id] = []
-        return jsonify({'status': 'cleared'})
-    
+            return jsonify({'response': str(e)})
+
+    @app.route('/history')
+    def history():
+        sid = request.args.get('session_id', 'default')
+        return jsonify({'history': _history.get(sid, [])})
+
+    @app.route('/stats')
+    def stats():
+        bot = get_chatbot()
+        mem = psutil.Process().memory_info().rss / 1024 / 1024
+        nn = {}
+        for name, attr in [('topic_extractor', '_topic_extractor'), ('wiki_mapper', '_neural_mapper'),
+                           ('intent_classifier', '_intent_classifier'), ('response_selector', '_response_selector')]:
+            obj = getattr(bot, attr, None)
+            if obj:
+                nn[name] = {'name': name.replace('_', ' ').title(),
+                           'architecture': f'{obj.input_dim}→{obj.hidden1}→{obj.hidden2}→1',
+                           'weights': f'{obj.input_dim * obj.hidden1 + obj.hidden1 * obj.hidden2 + obj.hidden2:,}',
+                           'training_count': getattr(obj, 'training_count', 0)}
+        return jsonify({'uptime': time.time() - _stats['start_time'], 'memory_mb': round(mem, 1),
+                       'stats': _stats, 'neural_networks': nn})
+
     @app.route('/health')
     def health():
         return jsonify({'status': 'ok'})
-    
-    @app.route('/stats')
-    def stats():
-        chatbot = get_chatbot()
-        
-        # Get memory usage
-        process = psutil.Process()
-        memory_info = process.memory_info()
-        
-        # Get neural network info
-        neural_info = {}
-        
-        # Topic Extractor
-        if hasattr(chatbot, '_topic_extractor') and chatbot._topic_extractor:
-            ext = chatbot._topic_extractor
-            neural_info['topic_extractor'] = {
-                'name': 'Topic Extractor',
-                'architecture': f'{ext.input_dim}→{ext.hidden1}→{ext.hidden2}→1',
-                'weights': f'{ext.input_dim * ext.hidden1 + ext.hidden1 * ext.hidden2 + ext.hidden2:,}',
-                'status': 'loaded',
-                'training_count': ext.training_count,
-            }
-        
-        # Wikipedia Mapper
-        if hasattr(chatbot, '_neural_mapper') and chatbot._neural_mapper:
-            mapper = chatbot._neural_mapper
-            neural_info['wiki_mapper'] = {
-                'name': 'Wikipedia Mapper',
-                'architecture': f'{mapper.input_dim}→{mapper.hidden1}→{mapper.hidden2}→1',
-                'weights': f'{mapper.input_dim * mapper.hidden1 + mapper.hidden1 * mapper.hidden2 + mapper.hidden2:,}',
-                'status': 'loaded',
-                'mappings_count': len(mapper.learned_mappings),
-            }
-        
-        # Intent Classifier
-        if hasattr(chatbot, '_intent_classifier') and chatbot._intent_classifier:
-            clf = chatbot._intent_classifier
-            neural_info['intent_classifier'] = {
-                'name': 'Intent Classifier',
-                'architecture': f'{clf.input_dim}→{clf.hidden1}→{clf.hidden2}→1',
-                'weights': f'{clf.input_dim * clf.hidden1 + clf.hidden1 * clf.hidden2 + clf.hidden2:,}',
-                'status': 'loaded',
-                'training_count': clf.training_count,
-            }
-        
-        # Response Selector
-        if hasattr(chatbot, '_response_selector') and chatbot._response_selector:
-            sel = chatbot._response_selector
-            neural_info['response_selector'] = {
-                'name': 'Response Selector',
-                'architecture': f'{sel.input_dim}→{sel.hidden1}→{sel.hidden2}→1',
-                'weights': f'{sel.input_dim * sel.hidden1 + sel.hidden1 * sel.hidden2 + sel.hidden2:,}',
-                'status': 'loaded',
-                'training_count': sel.training_count,
-            }
-        
-        # DistilGPT2
-        if hasattr(chatbot, '_generator') and chatbot._generator:
-            neural_info['distilgpt2'] = {
-                'name': 'DistilGPT2',
-                'architecture': 'Transformer (82M params)',
-                'weights': '82,000,000',
-                'status': 'loaded',
-            }
-        
-        # T5 Paraphrase
-        if hasattr(chatbot, '_rewriter') and chatbot._rewriter:
-            neural_info['t5_paraphrase'] = {
-                'name': 'T5 Paraphrase',
-                'architecture': 'Encoder-Decoder (60M params)',
-                'weights': '60,000,000',
-                'status': 'loaded',
-            }
-        
-        return jsonify({
-            'status': 'ok',
-            'uptime': round(time.time() - _stats['start_time'], 0),
-            'memory_mb': round(memory_info.rss / 1024 / 1024, 1),
-            'stats': _stats,
-            'neural_networks': neural_info,
-        })
-    
+
     return app

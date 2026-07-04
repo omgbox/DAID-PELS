@@ -15,9 +15,19 @@ logging.getLogger('transformers').setLevel(logging.ERROR)
 logging.getLogger('torch').setLevel(logging.ERROR)
 logging.getLogger('huggingface_hub').setLevel(logging.ERROR)
 
-# Suppress HuggingFace progress bars
+# Suppress HuggingFace progress bars and warnings
 os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'
 os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+os.environ['HF_HUB_DISABLE_IMPLICIT_TOKEN'] = '1'
+
+# Login to HuggingFace if token is available
+try:
+    from huggingface_hub import login
+    token = os.environ.get('HF_TOKEN')
+    if token:
+        login(token=token, add_to_git_credential=False)
+except Exception:
+    pass
 
 logger = logging.getLogger('bookbot.conversational_ai')
 

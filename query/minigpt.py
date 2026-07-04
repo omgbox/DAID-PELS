@@ -14,10 +14,20 @@ Usage:
   Generate: model.generate("Elizabeth felt", max_tokens=30)
 """
 
+import os
 import math
 import random
 import logging
 import json
+
+# Login to HuggingFace if token is available
+try:
+    from huggingface_hub import login
+    token = os.environ.get('HF_TOKEN')
+    if token:
+        login(token=token, add_to_git_credential=False)
+except Exception:
+    pass
 import re
 import numpy as np
 import torch

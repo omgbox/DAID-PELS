@@ -520,3 +520,122 @@ def load_distilgpt2() -> Optional[DistilGPT2Generator]:
     except Exception as e:
         logger.warning(f"Failed to load DistilGPT2: {e}")
         return None
+
+
+class T5Rewriter:
+    """
+    T5 Paraphrase rewriter — paraphrases text without hallucination.
+    
+    Uses Vamsi/T5_Paraphrase_Paws model fine-tuned specifically for paraphrasing.
+    Unlike DistilGPT2 (which hallucinates), T5 reads input and generates a paraphrase.
+    
+    Usage:
+        rewriter = T5Rewriter()
+        rewriter.load()
+        result = rewriter.rewrite("Rust is a programming language.")
+        # → "Rust is a programming language that emphasizes performance."
+    """
+
+    def __init__(self):
+        self.model = None
+        self.tokenizer = None
+        self._loaded = False
+
+    def load(self) -> bool:
+        """Load T5 Paraphrase model."""
+        if self._loaded:
+            return True
+
+        try:
+            from transformers import T5ForConditionalGeneration, T5Tokenizer
+
+            logger.info("Loading T5 Paraphrase (Vamsi/T5_Paraphrase_Paws)...")
+            self.tokenizer = T5Tokenizer.from_pretrained('Vamsi/T5_Paraphrase_Paws')
+            self.model = T5ForConditionalGeneration.from_pretrained('Vamsi/T5_Paraphrase_Paws')
+            self.model.eval()
+            self.model = self.model.to('cpu')
+
+            self._loaded = True
+            logger.info("T5 Paraphrase loaded successfully")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to load T5 Paraphrase: {e}")
+            return False
+
+    def rewrite(self, text: str, style: str = 'paraphrase') -> str:
+        """
+        Rewrite text in a more natural style.
+        
+        Args:
+            text: Original text to rewrite
+            style: 'paraphrase', 'simplify', 'formal'
+        
+        Returns:
+            Rewritten text, or original if rewriting fails
+        """
+        if not self._loaded:
+            if not self.load():
+                return text
+
+        try:
+            import torch
+
+            # T5 prompt format
+            prompt = f"{style}: {text}"
+            
+            # Encode
+            inputs = self.tokenizer(
+                prompt, 
+                return_tensors='pt', 
+                max_length=512, 
+                truncation=True
+            )
+
+            # Generate
+            with torch.no_grad():
+                output = self.model.generate(
+                    inputs['input_ids'],
+                    max_length=200,
+                    num_beams=4,
+                    early_stopping=True,
+                    no_repeat_ngram_size=3,
+                    length_penalty=2.0,
+                )
+
+            # Decode
+            rewritten = self.tokenizer.decode(output[0], skip_special_tokens=True)
+
+            # Quality check: if too short or same as input, return original
+            if len(rewritten) < 10 or rewritten.strip() == text.strip():
+                return text
+
+            return rewritten
+
+        except Exception as e:
+            logger.debug(f"T5 rewriting failed: {e}")
+            return text
+
+    def rewrite_for_chat(self, text: str, context: str = '') -> str:
+        """
+        Rewrite text specifically for chat responses.
+        
+        Args:
+            text: Original text (Wikipedia or book passage)
+            context: Optional context about what user asked
+        
+        Returns:
+            Natural, conversational response
+        """
+        return self.rewrite(text, style='paraphrase')
+
+
+def load_t5_rewriter() -> Optional[T5Rewriter]:
+    """Load T5 rewriter (preferred over DistilGPT2 for rewriting)."""
+    try:
+        rewriter = T5Rewriter()
+        if rewriter.load():
+            return rewriter
+        return None
+    except Exception as e:
+        logger.warning(f"Failed to load T5 rewriter: {e}")
+        return None

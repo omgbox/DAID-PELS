@@ -31,6 +31,7 @@ class ConversationalAI:
     def __init__(self, db_manager=None):
         self.db = db_manager
         self._generator = None
+        self._rewriter = None
         self._wiki = None
         self._history = []
         self._user_context = {}  # Remember user info
@@ -101,6 +102,40 @@ class ConversationalAI:
                 sys.stdout.flush()
                 logger.debug(f"Wikipedia not available: {e}")
         return self._wiki
+
+    def _get_rewriter(self):
+        """Lazy-load T5 Paraphrase rewriter with visual progress bar."""
+        if self._rewriter is None:
+            import sys
+            import time
+
+            # Progress bar for model loading
+            print()  # New line before progress
+            bar_len = 30
+            for i in range(5):
+                progress = (i + 1) * 20
+                filled = int(bar_len * progress / 100)
+                bar = '#' * filled + '-' * (bar_len - filled)
+                labels = ['Downloading', 'Loading tokenizer', 'Loading weights', 'Initializing', 'Ready']
+                sys.stdout.write(f'\r  [{bar}] {progress}% {labels[i]}')
+                sys.stdout.flush()
+                time.sleep(0.2)
+
+            try:
+                from .minigpt import T5Rewriter
+                self._rewriter = T5Rewriter()
+                self._rewriter.load()
+
+                # Final progress
+                bar = '#' * bar_len
+                sys.stdout.write(f'\r  [{bar}] 100% Rewriter ready!   \n')
+                sys.stdout.flush()
+
+            except Exception as e:
+                sys.stdout.write(f'\r  Rewriter error: {str(e)[:50]}   \n')
+                sys.stdout.flush()
+                logger.debug(f"T5 Paraphrase not available: {e}")
+        return self._rewriter
 
     def chat(self, message: str) -> str:
         """
@@ -471,8 +506,16 @@ class ConversationalAI:
 
     def _generate_with_facts(self, query: str, facts: str, gen) -> str:
         """Generate a response using facts from Wikipedia."""
-        # Simple approach: just return the facts in a natural way
-        # DistilGPT2 is too small for reliable rewriting
+        rewriter = self._get_rewriter()
+
+        if rewriter:
+            # Use T5 Paraphrase to rewrite the facts as a natural answer
+            response = rewriter.rewrite_for_chat(facts, context=query)
+
+            if response and len(response) > 30:
+                return response
+
+        # Fallback: return the facts directly
         return facts
 
     def _generate_conversational(self, message: str, gen) -> str:

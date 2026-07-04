@@ -20,16 +20,23 @@ The system's actual intelligence comes from the **rule-based pipeline**: BM25 + 
 
 ## TRUE LLM CHATBOT IMPROVEMENTS
 
-### 1. Better Response Generation
+### 1. Better Response Generation (T5 Paraphrase)
 **Goal**: Generate natural, fluent prose instead of copying Wikipedia text
 
 **Current**: "Rust is a programming language..."
 **Target**: "Rust is actually a really cool language! It's known for being fast and safe."
 
 **How to implement:**
-- Use DistilGPT2 to rewrite Wikipedia text in natural style
-- Add templates for different response styles
-- Generate multi-sentence answers from single facts
+- Use `Vamsi/T5_Paraphrase_Paws` for rewriting
+- T5 is fine-tuned specifically for paraphrasing on PAWS dataset
+- Encoder-decoder architecture prevents hallucination
+- ~60M params, fast inference
+
+**Why T5 Paraphrase over DistilGPT2/Pegasus:**
+- DistilGPT2 hallucinates — ignores input, generates unrelated text
+- Pegasus has position embedding issues — hangs on loading
+- T5 Paraphrase is specifically fine-tuned for paraphrasing
+- Works out of the box, no additional training needed
 
 **Priority**: HIGH
 
@@ -181,9 +188,27 @@ The system's actual intelligence comes from the **rule-based pipeline**: BM25 + 
 
 ## NEXT STEPS (Immediate)
 
-1. **Improve response generation** — Make DistilGPT2 rewrite Wikipedia text naturally
+1. **Improve response generation** — Use Pegasus for paraphrasing
 2. **Add source attribution** — Tell users where info comes from
 3. **Fix context handling** — Better pronoun resolution
+
+---
+
+## ALTERNATIVE PARAPHRASING ENGINES (To Try Later)
+
+| Model | Size | Quality | Speed | Notes |
+|-------|------|---------|-------|-------|
+| `tuner007/pegasus_paraphrase` | ~500MB | Good | Medium | **Current choice** |
+| `Vamsi/T5_Paraphrase_Paws` | ~60M | Good | Fast | Lightweight option |
+| `eugenesiow/bart-paraphrase` | ~1.6GB | Best | Slow | Highest quality |
+| `Ateeqq/Text-Rewriter-Paraphraser` | ~223M | Best | Medium | 430k training examples |
+| `parrot` | ~500MB | Good | Medium | Augmentation framework |
+
+### When to try alternatives:
+- **T5 Paraphrase**: If Pegasus is too slow, try this lightweight option
+- **BART Paraphrase**: If quality is priority over speed
+- **Text Rewriter**: If need best paraphrasing quality
+- **Parrot**: If need data augmentation for training
 
 ---
 

@@ -19,6 +19,7 @@ class ConversationalPipeline:
     def __init__(self, db_manager=None):
         self.db = db_manager
         self._generator = None
+        self._rewriter = None
         self._wiki = None
         self._conversation_history = []
 
@@ -33,6 +34,18 @@ class ConversationalPipeline:
             except Exception as e:
                 logger.warning(f"DistilGPT2 not available: {e}")
         return self._generator
+
+    def _get_rewriter(self):
+        """Lazy-load T5 Paraphrase rewriter."""
+        if self._rewriter is None:
+            try:
+                from .minigpt import T5Rewriter
+                self._rewriter = T5Rewriter()
+                self._rewriter.load()
+                logger.info("Loaded T5 Paraphrase for rewriting")
+            except Exception as e:
+                logger.warning(f"T5 Paraphrase not available: {e}")
+        return self._rewriter
 
     def _get_wiki(self):
         """Lazy-load Wikipedia API."""
@@ -210,23 +223,15 @@ class ConversationalPipeline:
         return None
 
     def _generate_response(self, query: str, facts: str) -> str:
-        """Generate a natural response using DistilGPT2 and Wikipedia facts."""
-        generator = self._get_generator()
+        """Generate a natural response using T5 Paraphrase and Wikipedia facts."""
+        rewriter = self._get_rewriter()
 
-        if generator:
-            # Use DistilGPT2 to rewrite the facts as a natural answer
-            prompt = f"User asked: {query}\nFacts: {facts}\nNatural answer:"
-            response = generator.generate_from_prompt(
-                prompt,
-                max_tokens=100,
-                temperature=0.7
-            )
+        if rewriter:
+            # Use T5 Paraphrase to rewrite the facts as a natural answer
+            response = rewriter.rewrite_for_chat(facts, context=query)
 
             if response and len(response) > 30:
-                # Clean up the response
-                response = self._clean_response(response, prompt)
-                if response:
-                    return response
+                return response
 
         # Fallback: return the facts directly
         return facts

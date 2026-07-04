@@ -2,7 +2,10 @@
   "learned_mappings": {
     "more": "More, More, More",
     "alice": "Alice, Sweet Alice",
-    "talking": "Talking Heads"
+    "talking": "Talking Heads",
+    "korea north korea": "North Korea",
+    "south korea korea north korea": "Geography of Korea",
+    "nop": "NOP (code)"
   },
   "training_count": 3
 }

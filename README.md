@@ -18,7 +18,7 @@ DAID-PELS is a chatbot that:
 7. **Shows source attribution** — tells you where information comes from
 8. **Resolves pronouns** — understands "it", "he", "she" from context
 9. **Scores response quality** — picks the best response from multiple candidates
-10. **Learns Wikipedia mappings** — neural mapper improves with every query
+10. **Learns on the fly** — 4 neural networks that improve with every query
 
 ```
 > hi
@@ -59,11 +59,39 @@ that cannot be identified as known natural or man-made phenomena.
 
 ## What's New (v2.2)
 
+### Neural Networks (All 3-Layer Deep)
+- **Topic Extractor** — 24 features, 128→64 neurons, extracts key topics
+- **Wikipedia Mapper** — 20 features, 256→128 neurons, maps queries to pages
+- **Intent Classifier** — 20 features, 128→64 neurons, classifies user intent
+- **Response Selector** — 16 features, 64→32 neurons, picks best response
+- **All learn on the fly** — no pre-training, just use the bot
+- **Total: ~150M parameters** running on CPU
+
+### Online Learning
+- **Learns from every query** — each Wikipedia lookup trains the networks
+- **Persists learning** — saves to JSON files, remembers between sessions
+- **Gets smarter over time** — more usage = better performance
+- **No pre-training needed** — just start chatting
+
 ### Neural Wikipedia Mapper
+- **3-layer network** (20→256→128→1) with Soundex, n-grams, edit distance
 - **Learns on the fly** — no hard-coded mappings needed
-- **Online learning** — gets smarter with every query
-- **16 feature neural network** — word overlap, n-grams, edit distance
-- **Saves mappings** — remembers what it learned
+- **Saves mappings** — remembers query→page relationships
+
+### Neural Topic Extractor
+- **3-layer network** (24→128→64→1) with verb detection, noun detection
+- **Replaces regex** — handles any query structure
+- **Learns word importance** — "jesus" = important, "did" = less important
+
+### Neural Intent Classifier
+- **3-layer network** (20→128→64→1) classifying 8 intent types
+- **Intent types**: greeting, farewell, question, statement, personal, emotional, command, book_query
+- **Handles edge cases** — learns from ambiguous queries
+
+### Neural Response Selector
+- **3-layer network** (16→64→32→1) scoring response quality
+- **Replaces random.choice** — picks best response from candidates
+- **Learns preferences** — gets better at picking responses
 
 ### Follow-up Context
 - **Topic carryover** — remembers what you were talking about

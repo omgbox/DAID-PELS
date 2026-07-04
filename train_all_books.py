@@ -159,13 +159,13 @@ def train_on_book(book_path, db, pipeline_modules, book_num, total_books):
     # Save entities
     print(f'    Saving {len(context.entities)} entities...', end=' ', flush=True)
     for entity in context.entities:
-        db.insert('entities', {
-            'entity_id': entity.get('entity_id'),
-            'canonical_name': entity.get('canonical_name'),
-            'entity_type': entity.get('entity_type'),
-            'frequency': entity.get('frequency', 1),
-            'centrality': entity.get('centrality', 0.0),
-        })
+        # Use INSERT OR IGNORE to avoid duplicates, let SQLite auto-generate entity_id
+        db.execute(
+            "INSERT OR IGNORE INTO entities (canonical_name, entity_type, frequency, centrality) "
+            "VALUES (?, ?, ?, ?)",
+            (entity.get('canonical_name'), entity.get('entity_type'),
+             entity.get('frequency', 1), entity.get('centrality', 0.0))
+        )
     print('done')
 
     # Save SVO triples

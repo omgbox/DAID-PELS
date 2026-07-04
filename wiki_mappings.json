@@ -2278,7 +2278,8 @@
     "how does chatgpt work?": "ChatGPT",
     "who invented chatgpt?": "ChatGPT",
     "when was chatgpt created?": "ChatGPT",
-    "why is chatgpt important?": "ChatGPT"
+    "why is chatgpt important?": "ChatGPT",
+    "python": "Python (programming language)"
   },
-  "training_count": 2224
+  "training_count": 1
 }

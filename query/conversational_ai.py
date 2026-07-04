@@ -863,8 +863,40 @@ class ConversationalAI:
         return None
 
     def _generate_with_facts(self, query: str, facts: str, gen) -> str:
-        """Return facts directly — fast and accurate."""
-        return facts
+        """Rewrite facts to sound natural and conversational."""
+        # Clean up the Wikipedia text
+        text = facts.strip()
+        
+        # Remove citation references like [1], [2], etc.
+        text = re.sub(r'\[\d+\]', '', text)
+        
+        # Remove "may refer to" disambiguation
+        if 'may refer to' in text[:200]:
+            return None
+        
+        # Clean up multiple spaces
+        text = re.sub(r'\s+', ' ', text)
+        
+        # If text is too short, return as-is
+        if len(text) < 50:
+            return text
+        
+        # Try to make it more conversational
+        # Remove formal Wikipedia opening if present
+        for prefix in ['A ', 'An ', 'The ', 'In ', 'At ']:
+            if text.startswith(prefix) and len(text) > 100:
+                # Keep first sentence as-is, simplify rest
+                sentences = text.split('. ')
+                if len(sentences) > 1:
+                    first = sentences[0]
+                    rest = '. '.join(sentences[1:])
+                    # Simplify rest by removing complex clauses
+                    rest = re.sub(r'\s*\([^)]*\)\s*', ' ', rest)  # Remove parenthetical
+                    rest = re.sub(r'\s+', ' ', rest).strip()
+                    text = f"{first}. {rest}"
+                break
+        
+        return text
 
     def _score_responses(self, candidates: List[str], query: str) -> str:
         """

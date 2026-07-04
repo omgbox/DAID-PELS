@@ -863,39 +863,26 @@ class ConversationalAI:
         return None
 
     def _generate_with_facts(self, query: str, facts: str, gen) -> str:
-        """Rewrite facts to sound natural and conversational."""
-        # Clean up the Wikipedia text
+        """Rewrite facts to sound natural using T5 Paraphrase."""
+        # Clean up Wikipedia text first
         text = facts.strip()
+        text = re.sub(r'\[\d+\]', '', text)  # Remove citations
+        text = re.sub(r'\s+', ' ', text)  # Clean spaces
         
-        # Remove citation references like [1], [2], etc.
-        text = re.sub(r'\[\d+\]', '', text)
-        
-        # Remove "may refer to" disambiguation
         if 'may refer to' in text[:200]:
             return None
         
-        # Clean up multiple spaces
-        text = re.sub(r'\s+', ' ', text)
+        # Use T5 Paraphrase to rewrite
+        rewriter = self._get_rewriter()
+        if rewriter:
+            try:
+                rewritten = rewriter.rewrite_for_chat(text, context=query)
+                if rewritten and len(rewritten) > 30:
+                    return rewritten
+            except Exception as e:
+                logger.debug(f"T5 rewrite failed: {e}")
         
-        # If text is too short, return as-is
-        if len(text) < 50:
-            return text
-        
-        # Try to make it more conversational
-        # Remove formal Wikipedia opening if present
-        for prefix in ['A ', 'An ', 'The ', 'In ', 'At ']:
-            if text.startswith(prefix) and len(text) > 100:
-                # Keep first sentence as-is, simplify rest
-                sentences = text.split('. ')
-                if len(sentences) > 1:
-                    first = sentences[0]
-                    rest = '. '.join(sentences[1:])
-                    # Simplify rest by removing complex clauses
-                    rest = re.sub(r'\s*\([^)]*\)\s*', ' ', rest)  # Remove parenthetical
-                    rest = re.sub(r'\s+', ' ', rest).strip()
-                    text = f"{first}. {rest}"
-                break
-        
+        # Fallback: return cleaned text
         return text
 
     def _score_responses(self, candidates: List[str], query: str) -> str:

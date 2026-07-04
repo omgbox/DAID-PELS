@@ -34,6 +34,7 @@ class ConversationalAI:
         self._rewriter = None
         self._wiki = None
         self._history = []
+        self._entities = []  # Track entities mentioned in conversation
         self._user_context = {}  # Remember user info
 
     def _get_generator(self):
@@ -145,6 +146,9 @@ class ConversationalAI:
         message = message.strip()
         if not message:
             return "I'm here! What would you like to talk about?"
+
+        # Step 0: Resolve pronouns using context
+        message = self._resolve_pronouns(message)
 
         # Step 1: Handle simple cases instantly
         quick = self._instant_response(message)
@@ -584,8 +588,67 @@ class ConversationalAI:
             return "— Source: Book database"
         return ""
 
+    def _resolve_pronouns(self, message: str) -> str:
+        """
+        Replace pronouns with the last mentioned entity.
+        
+        Examples:
+            "Who created it?" → "Who created Rust?"
+            "Tell me more about him" → "Tell me more about Darcy"
+        """
+        if not self._entities:
+            return message
+        
+        # Get the last mentioned entity
+        last_entity = self._entities[-1]
+        
+        # Pronouns to resolve
+        pronouns = {
+            'it': last_entity,
+            'he': last_entity,
+            'she': last_entity,
+            'him': last_entity,
+            'her': last_entity,
+            'this': last_entity,
+            'that': last_entity,
+        }
+        
+        # Replace pronouns in the message
+        words = message.split()
+        resolved = []
+        for word in words:
+            word_lower = word.lower().rstrip('?,.!;:')
+            if word_lower in pronouns:
+                resolved.append(pronouns[word_lower])
+            else:
+                resolved.append(word)
+        
+        return ' '.join(resolved)
+
+    def _extract_entities(self, message: str) -> List[str]:
+        """Extract entities (nouns) from a message."""
+        entities = []
+        
+        # Simple entity extraction - look for capitalized words
+        words = message.split()
+        for word in words:
+            # Remove punctuation
+            clean = word.rstrip('?,.!;:').lstrip('?,.!;:')
+            if clean and clean[0].isupper() and len(clean) > 2:
+                # Skip common words
+                if clean.lower() not in {'what', 'who', 'when', 'where', 'why', 'how', 'which', 'the', 'is', 'are', 'was', 'were', 'do', 'does', 'did'}:
+                    entities.append(clean)
+        
+        return entities
+
     def _remember(self, query: str, response: str):
         """Remember conversation for context."""
         self._history.append({'query': query, 'response': response})
         if len(self._history) > 10:
             self._history = self._history[-10:]
+        
+        # Extract and track entities
+        entities = self._extract_entities(query)
+        self._entities.extend(entities)
+        if len(self._entities) > 5:
+            self._entities = self._entities[-5:]

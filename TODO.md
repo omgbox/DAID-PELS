@@ -87,18 +87,19 @@ The system's actual intelligence comes from the **rule-based pipeline**: BM25 + 
 
 ---
 
-### 5. Better Context Handling
+### 5. Better Context Handling (Current Priority)
 **Goal**: Understand pronouns and references across turns
 
 **Current**: "Who created it?" → "I don't know" (doesn't remember "it" = Rust)
 **Target**: "Graydon Hoare created it in 2006"
 
 **How to implement:**
-- Expand pronoun resolution
+- Expand pronoun resolution (it, he, she, they, this, that)
 - Track entities mentioned in conversation
 - Build entity cache for quick lookup
+- Replace pronouns with the last mentioned entity
 
-**Priority**: HIGH
+**Priority**: HIGH (Current)
 
 ---
 

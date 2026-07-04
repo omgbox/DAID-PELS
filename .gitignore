@@ -63,6 +63,8 @@ torch_attention_state.pt
 # T5 model (abandoned, too large)
 t5_small/
 t5/
+models/
+*.whl
 
 # Training output
 train_output.txt

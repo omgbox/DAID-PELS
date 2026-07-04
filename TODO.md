@@ -72,18 +72,18 @@ The system's actual intelligence comes from the **rule-based pipeline**: BM25 + 
 
 ---
 
-### 4. Source Attribution
+### 4. Source Attribution (Current Priority)
 **Goal**: Tell users where information comes from
 
 **Current**: No source attribution
 **Target**: "According to Pride and Prejudice..." or "Wikipedia states that..."
 
 **How to implement:**
-- Track source in response generation
-- Add attribution templates
+- Track source in response generation (book, Wikipedia, or general knowledge)
+- Add attribution templates at the end of responses
 - Differentiate book vs Wikipedia vs general knowledge
 
-**Priority**: MEDIUM
+**Priority**: HIGH (Current)
 
 ---
 

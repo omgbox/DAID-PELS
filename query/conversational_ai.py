@@ -157,15 +157,18 @@ class ConversationalAI:
 
         # Step 3: Get information based on intent type
         facts = None
+        source = None
         if intent['type'] == 'book':
             # Search book database
             facts = self._search_book(intent['topic'])
+            source = 'book'
         elif intent['needs_info']:
             # Search Wikipedia
             facts = self._get_facts(intent['topic'])
+            source = 'wikipedia'
 
         # Step 4: Generate a natural response
-        response = self._respond(message, intent, facts)
+        response = self._respond(message, intent, facts, source)
 
         # Step 5: Remember this conversation
         self._remember(message, response)
@@ -429,7 +432,7 @@ class ConversationalAI:
 
         return None
 
-    def _respond(self, message: str, intent: Dict, facts: Optional[str]) -> str:
+    def _respond(self, message: str, intent: Dict, facts: Optional[str], source: Optional[str] = None) -> str:
         """Generate a natural response."""
         gen = self._get_generator()
 
@@ -441,8 +444,17 @@ class ConversationalAI:
 
         if facts:
             if gen:
-                return self._generate_with_facts(message, facts, gen)
-            return facts
+                response = self._generate_with_facts(message, facts, gen)
+            else:
+                response = facts
+            
+            # Add source attribution
+            if source and response:
+                attribution = self._get_attribution(source, intent.get('topic', ''))
+                if attribution:
+                    response = f"{response}\n\n{attribution}"
+            
+            return response
 
         if gen:
             return self._generate_conversational(message, gen)
@@ -563,6 +575,14 @@ class ConversationalAI:
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
 
         return cleaned if len(cleaned) > 20 else None
+
+    def _get_attribution(self, source: str, topic: str) -> str:
+        """Get source attribution based on where the information came from."""
+        if source == 'wikipedia':
+            return "— Source: Wikipedia"
+        elif source == 'book':
+            return "— Source: Book database"
+        return ""
 
     def _remember(self, query: str, response: str):
         """Remember conversation for context."""

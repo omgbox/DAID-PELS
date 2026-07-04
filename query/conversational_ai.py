@@ -369,6 +369,9 @@ class ConversationalAI:
         # Extract topic
         topic = self._extract_topic(message)
 
+        # Check if it's a follow-up
+        is_followup = self._is_followup(m) if self._history else False
+        
         # Determine what we need
         if is_personal:
             return {'type': 'personal', 'topic': topic, 'needs_info': False}
@@ -376,7 +379,7 @@ class ConversationalAI:
             return {'type': 'emotional', 'topic': topic, 'needs_info': False}
         elif is_book:
             return {'type': 'book', 'topic': topic, 'needs_info': True}
-        elif is_question:
+        elif is_question or is_followup:
             return {'type': 'question', 'topic': topic, 'needs_info': True}
         else:
             return {'type': 'statement', 'topic': topic, 'needs_info': False}

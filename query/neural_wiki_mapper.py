@@ -23,38 +23,38 @@ class NeuralWikipediaMapper:
     - Online learning from successful lookups
     """
     
-    def __init__(self, input_dim: int = 20, hidden_dim: int = 128):
+    def __init__(self, input_dim: int = 20, hidden1: int = 256, hidden2: int = 128):
         self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
+        self.hidden1 = hidden1
+        self.hidden2 = hidden2
         
-        # Simple weights (no PyTorch needed for this small network)
         # Xavier initialization
         scale1 = math.sqrt(2.0 / input_dim)
-        scale2 = math.sqrt(2.0 / hidden_dim)
+        scale2 = math.sqrt(2.0 / hidden1)
+        scale3 = math.sqrt(2.0 / hidden2)
         
+        # Layer 1: input -> hidden1
         self.W1 = [scale1 * (hash(f"w1_{i}_{j}") % 1000 / 500 - 1) 
                    for i in range(input_dim) 
-                   for j in range(hidden_dim)]
-        self.b1 = [0.0] * hidden_dim
+                   for j in range(hidden1)]
+        self.b1 = [0.0] * hidden1
         
+        # Layer 2: hidden1 -> hidden2
         self.W2 = [scale2 * (hash(f"w2_{i}_{j}") % 1000 / 500 - 1) 
-                   for i in range(hidden_dim) 
-                   for j in range(1)]
-        self.b2 = [0.0]
+                   for i in range(hidden1) 
+                   for j in range(hidden2)]
+        self.b2 = [0.0] * hidden2
+        
+        # Layer 3: hidden2 -> output
+        self.W3 = [scale3 * (hash(f"w3_{j}") % 1000 / 500 - 1) 
+                   for j in range(hidden2)]
+        self.b3 = [0.0]
         
         # Learned mappings cache
         self.learned_mappings: Dict[str, str] = {}
         
         # Training data
         self.training_history: List[Tuple[str, str, float]] = []
-        
-        # Feature statistics for normalization
-        self.feature_stats = {
-            'word_overlap_max': 1.0,
-            'char_ngram_max': 1.0,
-            'edit_dist_max': 1.0,
-            'length_ratio_max': 2.0,
-        }
     
     def _extract_features(self, query: str, title: str) -> List[float]:
         """Extract feature vector from query-title pair."""
@@ -253,24 +253,32 @@ class NeuralWikipediaMapper:
         return prev_row[-1]
     
     def _forward(self, features: List[float]) -> float:
-        """Forward pass through the network."""
+        """Forward pass through the 3-layer network."""
         # Ensure correct input size
         x = features[:self.input_dim]
         while len(x) < self.input_dim:
             x.append(0.0)
         
-        # Hidden layer with ReLU
-        hidden = []
-        for j in range(self.hidden_dim):
+        # Layer 1: input -> hidden1 with ReLU
+        hidden1 = []
+        for j in range(self.hidden1):
             val = self.b1[j]
             for i in range(self.input_dim):
-                val += x[i] * self.W1[i * self.hidden_dim + j]
-            hidden.append(max(0, val))  # ReLU
+                val += x[i] * self.W1[i * self.hidden1 + j]
+            hidden1.append(max(0, val))  # ReLU
         
-        # Output layer (single score)
-        output = self.b2[0]
-        for j in range(self.hidden_dim):
-            output += hidden[j] * self.W2[j]
+        # Layer 2: hidden1 -> hidden2 with ReLU
+        hidden2 = []
+        for j in range(self.hidden2):
+            val = self.b2[j]
+            for i in range(self.hidden1):
+                val += hidden1[i] * self.W2[i * self.hidden2 + j]
+            hidden2.append(max(0, val))  # ReLU
+        
+        # Layer 3: hidden2 -> output
+        output = self.b3[0]
+        for j in range(self.hidden2):
+            output += hidden2[j] * self.W3[j]
         
         # Sigmoid to get probability
         return 1.0 / (1.0 + math.exp(-max(-10, min(10, output))))
@@ -338,19 +346,24 @@ class NeuralWikipediaMapper:
         target = 1.0 if positive else 0.0
         error = target - prediction
         
-        # Gradient descent (very simple)
+        # Gradient descent (3 layers)
         learning_rate = 0.01
         
-        # Update output layer
-        for j in range(self.hidden_dim):
-            self.W2[j] += learning_rate * error * features[j] if j < len(features) else 0
+        # Update layer 3 weights
+        for j in range(self.hidden2):
+            self.W3[j] += learning_rate * error * self.b2[j] if j < len(self.b2) else 0
         
-        # Update hidden layer (simplified)
-        for i in range(min(len(features), self.input_dim)):
-            for j in range(self.hidden_dim):
-                self.W1[i * self.hidden_dim + j] += learning_rate * error * features[i] * 0.1
+        # Update layer 2 weights (simplified)
+        for i in range(self.hidden1):
+            for j in range(self.hidden2):
+                self.W2[i * self.hidden2 + j] += learning_rate * error * 0.01
         
-        logger.debug(f"Trained on '{query}' → '{correct_title}' (error: {error:.3f})")
+        # Update layer 1 weights (simplified)
+        for ii in range(min(len(features), self.input_dim)):
+            for jj in range(self.hidden1):
+                self.W1[ii * self.hidden1 + jj] += learning_rate * error * features[ii] * 0.01
+        
+        logger.debug(f"Trained on '{query}' -> '{correct_title}' (error: {error:.3f})")
     
     def save(self, path: str):
         """Save learned mappings to file."""

@@ -672,109 +672,63 @@ class ConversationalAI:
         return expansions
 
     def _search_wikipedia_dynamic(self, wiki, topic: str) -> Optional[str]:
-        """Dynamically search Wikipedia for the best matching page."""
+        """Dynamically search Wikipedia using REST API + neural ranking."""
         try:
-            # Get expanded topics to search
+            import requests
+            
+            # Step 1: Get expanded topics to try
             search_topics = self._expand_compound_topic(topic)
             
-            # Try each expanded topic
+            # Step 2: Try each expanded topic directly
             for search_topic in search_topics:
-                # Try direct page lookup first
                 result = self._try_direct_page(wiki, search_topic)
                 if result:
                     return result
             
-            # Fall back to search API
-            search_results = wiki.search(topic, results=10)
+            # Step 3: Use Wikipedia MediaWiki API for search
+            search_url = 'https://en.wikipedia.org/w/api.php'
+            params = {
+                'action': 'query',
+                'list': 'search',
+                'srsearch': topic,
+                'format': 'json',
+                'srlimit': 5
+            }
+            headers = {'User-Agent': 'BookBot/1.0 (https://github.com/omgbox/DAID-PELS)'}
+            
+            try:
+                resp = requests.get(search_url, params=params, headers=headers, timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    search_results = [s['title'] for s in data.get('query', {}).get('search', [])]
+                    
+                    if search_results:
+                        # Try each result
+                        for title in search_results[:5]:
+                            result = self._try_direct_page(wiki, title)
+                            if result:
+                                # Train neural mapper
+                                mapper = self._get_neural_mapper()
+                                if mapper:
+                                    mapper.train(topic, title, positive=True)
+                                return result
+            
+            except Exception as e:
+                logger.debug(f"MediaWiki API search failed: {e}")
+            
+            # Step 4: Try common patterns
+            common_patterns = [
+                topic.title(),
+                f'{topic.title()} (programming language)',
+                f'{topic.title()} (disambiguation)',
+            ]
+            
+            for pattern in common_patterns:
+                result = self._try_direct_page(wiki, pattern)
+                if result:
+                    return result
 
-            if not search_results:
-                return None
-
-            # Use neural mapper if available
-            mapper = self._get_neural_mapper()
-            if mapper:
-                # Get valid page titles
-                valid_titles = []
-                valid_pages = {}
-                for title in search_results:
-                    try:
-                        page = wiki.page(title)
-                        if page.exists() and 'may refer to' not in page.summary[:200]:
-                            valid_titles.append(title)
-                            valid_pages[title] = page
-                    except Exception:
-                        continue
-
-                if valid_titles:
-                    # Neural mapper picks the best
-                    best_title = mapper.predict(topic, valid_titles)
-                    if best_title and best_title in valid_pages:
-                        page = valid_pages[best_title]
-                        sentences = page.summary.split('. ')
-                        result = '. '.join(sentences[:3]) + '.'
-                        
-                        # Train the mapper on this lookup
-                        mapper.train(topic, best_title, positive=True)
-                        
-                        return result
-
-            # Fallback: rule-based scoring
-            best_page = None
-            best_score = 0
-
-            topic_lower = topic.lower()
-            topic_words = set(topic_lower.split())
-
-            for title in search_results:
-                try:
-                    page = wiki.page(title)
-                    if not page.exists():
-                        continue
-
-                    summary = page.summary
-
-                    # Skip disambiguation pages
-                    if 'may refer to' in summary[:200]:
-                        continue
-
-                    # Score based on title similarity
-                    title_lower = title.lower()
-                    score = 0
-
-                    # Exact match
-                    if title_lower == topic_lower:
-                        score += 100
-
-                    # Title contains topic
-                    elif topic_lower in title_lower:
-                        score += 50
-
-                    # Topic contains title (for multi-word topics)
-                    elif any(w in topic_lower for w in title_lower.split()):
-                        score += 30
-
-                    # Word overlap
-                    title_words = set(title_lower.split())
-                    overlap = len(topic_words & title_words)
-                    score += overlap * 10
-
-                    # Prefer longer summaries (more informative)
-                    score += min(len(summary) / 1000, 5)
-
-                    if score > best_score:
-                        best_score = score
-                        best_page = page
-
-                except Exception:
-                    continue
-
-            if best_page and best_score >= 20:
-                # Train mapper on this result
-                if mapper:
-                    mapper.train(topic, best_page.title, positive=True)
-                
-                sentences = best_page.summary.split('. ')
-                return '. '.join(sentences[:3]) + '.'
+            return None
 
         except Exception as e:
             logger.debug(f"Wikipedia search failed: {e}")

@@ -51,6 +51,7 @@ class ConversationalAI:
         self._topic_extractor = None  # Neural topic extractor
         self._intent_classifier = None  # Neural intent classifier
         self._response_selector = None  # Neural response selector
+        self._attention = None  # Self-attention for context
         self._last_query_topic = None  # Track last query for learning
 
     def _get_generator(self):
@@ -233,18 +234,25 @@ class ConversationalAI:
         # Step 2: Understand what the user wants
         intent = self._understand(message)
 
-        # Step 3: Get information from multiple sources
+        # Step 3: Extract entities from query
+        entities = self._extract_entities(message)
+        if entities:
+            self._entities.extend(entities[-3:])
+            if len(self._entities) > 10:
+                self._entities = self._entities[-10:]
+        
+        # Step 4: Get information from multiple sources
         facts = None
         sources = []
         
         if intent['type'] == 'book':
-            # Search book database
+            # Search book database with BM25
             book_facts = self._search_book(intent['topic'])
             if book_facts:
                 facts = book_facts
                 sources.append('book')
         elif intent['needs_info']:
-            # Search Wikipedia
+            # Search Wikipedia using neural mapper
             wiki_facts = self._get_facts(intent['topic'])
             if wiki_facts:
                 facts = wiki_facts
@@ -254,7 +262,6 @@ class ConversationalAI:
             book_facts = self._search_book(intent['topic'])
             if book_facts:
                 if facts:
-                    # Combine facts from both sources
                     facts = f"{facts}\n\nAdditionally, from the book collection: {book_facts}"
                 else:
                     facts = book_facts

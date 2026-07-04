@@ -36,45 +36,40 @@ console.log('Initialization complete');
 
 // Send message
 async function send() {
-    console.log('send() called');
     const text = input.value.trim();
-    console.log('Input text:', text);
-    if (!text) {
-        console.log('No text, returning');
-        return;
-    }
+    if (!text) return;
 
-    console.log('Hiding welcome, adding user msg');
-    welcome.classList.add('hidden');
+    // Hide welcome, show typing
+    const w = document.getElementById('welcome');
+    const t = document.getElementById('typing');
+    if (w) w.classList.add('hidden');
+    if (t) t.classList.add('show');
+    
     addMsg(text, 'user');
     input.value = '';
     input.style.height = 'auto';
     sendBtn.disabled = true;
-    typing.classList.add('show');
     snackbarShow('Processing...');
     messages.scrollTop = messages.scrollHeight;
 
     try {
-        console.log('Fetching /chat...');
         const res = await fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: text, session_id: sessionId })
         });
-        console.log('Response status:', res.status);
         const data = await res.json();
-        console.log('Response data:', data);
-        typing.classList.remove('show');
+        
+        if (t) t.classList.remove('show');
         
         const sourceText = data.source === 'wikipedia' ? 'Wikipedia' : data.source === 'books' ? 'Books' : 'Local';
         snackbarShow(sourceText);
         
-        console.log('Adding bot message');
         addMsg(data.response, 'bot', data.response_time, data.source);
         
     } catch (e) {
-        console.error('Error:', e);
-        typing.classList.remove('show');
+        const t2 = document.getElementById('typing');
+        if (t2) t2.classList.remove('show');
         addMsg('Error: ' + e.message, 'bot');
     }
 
@@ -84,7 +79,6 @@ async function send() {
 
 // Add message to chat
 function addMsg(text, type, time, source) {
-    console.log('addMsg called:', type, text.substring(0, 50));
     const div = document.createElement('div');
     div.className = 'msg msg-' + type;
     
@@ -102,10 +96,14 @@ function addMsg(text, type, time, source) {
     }
     
     div.innerHTML = html;
-    console.log('Inserting before typing element');
-    messages.insertBefore(div, typing);
+    // Always get fresh reference to typing element
+    const t = document.getElementById('typing');
+    if (t) {
+        messages.insertBefore(div, t);
+    } else {
+        messages.appendChild(div);
+    }
     messages.scrollTop = messages.scrollHeight;
-    console.log('Message added to DOM');
 }
 
 // Snackbar
@@ -127,7 +125,12 @@ function loadSessions() {
 function switchSession(id) {
     sessionId = id;
     localStorage.setItem('sid', id);
-    messages.innerHTML = '<div class="welcome" id="welcome"><h1>DAID-PELS</h1><p>Ask me anything!</p></div><div class="typing" id="typing"><span></span><span></span><span></span></div>';
+    // Clear messages but keep structure
+    const msgList = messages.querySelectorAll('.msg');
+    msgList.forEach(m => m.remove());
+    // Show welcome
+    const w = document.getElementById('welcome');
+    if (w) w.classList.remove('hidden');
     loadHistory();
     loadSessions();
 }
@@ -139,7 +142,12 @@ function newSession(name) {
     if (sessions.length > 20) sessions = sessions.slice(0, 20);
     localStorage.setItem('sessions', JSON.stringify(sessions));
     
-    messages.innerHTML = '<div class="welcome" id="welcome"><h1>DAID-PELS</h1><p>Ask me anything!</p></div><div class="typing" id="typing"><span></span><span></span><span></span></div>';
+    // Clear messages but keep structure
+    const msgList = messages.querySelectorAll('.msg');
+    msgList.forEach(m => m.remove());
+    const w = document.getElementById('welcome');
+    if (w) w.classList.remove('hidden');
+    
     loadSessions();
     input.focus();
 }
@@ -147,18 +155,26 @@ function newSession(name) {
 // Load history
 async function loadHistory() {
     try {
+        console.log('Loading history for session:', sessionId);
         const res = await fetch('/history?session_id=' + sessionId);
         const data = await res.json();
+        console.log('History loaded:', data.history ? data.history.length : 0, 'messages');
         
         const w = document.getElementById('welcome');
+        const t = document.getElementById('typing');
+        
         if (data.history && data.history.length > 0) {
             if (w) w.classList.add('hidden');
             data.history.forEach(m => {
                 addMsg(m.user, 'user');
                 addMsg(m.bot, 'bot', m.time, m.source);
             });
+        } else {
+            if (w) w.classList.remove('hidden');
         }
-    } catch (e) {}
+    } catch (e) {
+        console.error('Failed to load history:', e);
+    }
 }
 
 // Stats

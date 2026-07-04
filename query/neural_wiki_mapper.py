@@ -232,8 +232,8 @@ class NeuralWikipediaMapper:
                 best_score = score
                 best_title = title
         
-        # Only return if confidence is high enough
-        if best_score > 0.5:
+        # Only return if confidence is reasonable
+        if best_score > 0.3:
             return best_title
         
         return None

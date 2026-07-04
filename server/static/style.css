@@ -119,14 +119,16 @@ body {
     padding: 2px 8px; background: var(--border2); border-radius: 10px;
 }
 
-.typing { display: none; padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; width: fit-content; margin-bottom: 10px; }
-.typing.show { display: flex; gap: 4px; align-items: center; }
+.processing { display: none; margin-bottom: 10px; }
+.processing.show { display: flex; align-items: center; gap: 10px; }
+.typing { padding: 10px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; display: flex; gap: 4px; align-items: center; }
 .typing span {
     width: 6px; height: 6px; background: var(--text3); border-radius: 50%;
     animation: bounce 1.4s infinite ease-in-out;
 }
 .typing span:nth-child(2) { animation-delay: 0.16s; }
 @keyframes bounce { 0%,80%,100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
+.status-text { font-size: 0.8em; color: var(--text3); font-style: italic; }
 
 /* Input */
 .input-area { padding: 0 20px 16px; }

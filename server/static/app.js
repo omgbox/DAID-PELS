@@ -8,8 +8,6 @@ let statsOpen = false;
 const $ = id => document.getElementById(id);
 const input = $('input');
 const messages = $('messages');
-const welcome = $('welcome');
-const typing = $('typing');
 const snackbar = $('snackbar');
 const statsPanel = $('statsPanel');
 const sessionsEl = $('sessions');
@@ -34,33 +32,54 @@ loadHistory();
 
 console.log('Initialization complete');
 
+// Show processing status
+function showProcessing(text) {
+    const p = document.getElementById('processing');
+    const s = document.getElementById('statusText');
+    if (p) p.classList.add('show');
+    if (s) s.textContent = text;
+}
+
+function hideProcessing() {
+    const p = document.getElementById('processing');
+    if (p) p.classList.remove('show');
+}
+
 // Send message
 async function send() {
     const text = input.value.trim();
     if (!text) return;
 
-    // Hide welcome, show typing
+    // Hide welcome
     const w = document.getElementById('welcome');
-    const t = document.getElementById('typing');
     if (w) w.classList.add('hidden');
-    if (t) t.classList.add('show');
     
     addMsg(text, 'user');
     input.value = '';
     input.style.height = 'auto';
     sendBtn.disabled = true;
-    snackbarShow('Processing...');
     messages.scrollTop = messages.scrollHeight;
 
     try {
+        // Show processing steps
+        showProcessing('Understanding query...');
+        await new Promise(r => setTimeout(r, 200));
+        
+        showProcessing('Searching knowledge base...');
+        
         const res = await fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: text, session_id: sessionId })
         });
+        
+        showProcessing('Generating response...');
         const data = await res.json();
         
-        if (t) t.classList.remove('show');
+        showProcessing('Done!');
+        await new Promise(r => setTimeout(r, 300));
+        
+        hideProcessing();
         
         const sourceText = data.source === 'wikipedia' ? 'Wikipedia' : data.source === 'books' ? 'Books' : 'Local';
         snackbarShow(sourceText);
@@ -68,8 +87,7 @@ async function send() {
         addMsg(data.response, 'bot', data.response_time, data.source);
         
     } catch (e) {
-        const t2 = document.getElementById('typing');
-        if (t2) t2.classList.remove('show');
+        hideProcessing();
         addMsg('Error: ' + e.message, 'bot');
     }
 

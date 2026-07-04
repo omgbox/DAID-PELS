@@ -1,5 +1,5 @@
 """Flask app for DAID-PELS web interface."""
-import sys, os, time, json
+import sys, os, time, json, threading
 from pathlib import Path
 from collections import defaultdict
 
@@ -16,6 +16,10 @@ def create_app():
     _chatbot = None
     _stats = {'total_queries': 0, 'total_time': 0, 'avg_response_time': 0, 'start_time': time.time()}
     _history = defaultdict(list)
+    _lock = threading.Lock()
+    _processing = False
+    _cache = {}  # question -> response cache
+    _last_query_time = {}  # session_id -> last query time
 
     def get_chatbot():
         nonlocal _chatbot
@@ -30,26 +34,58 @@ def create_app():
 
     @app.route('/chat', methods=['POST'])
     def chat():
+        global _processing
         data = request.get_json()
-        message = data.get('message', '')
+        message = data.get('message', '').strip()
         sid = data.get('session_id', 'default')
+        
         if not message:
             return jsonify({'response': 'Please enter a message.'})
+        
+        # Rate limit: max 1 query per 2 seconds per session
+        now = time.time()
+        if sid in _last_query_time and now - _last_query_time[sid] < 2:
+            return jsonify({'response': 'Please wait a moment before asking another question.', 'source': 'local', 'response_time': 0})
+        _last_query_time[sid] = now
+        
+        # Check if already processing
+        if _processing:
+            return jsonify({'response': 'Still processing previous question...', 'source': 'local', 'response_time': 0})
+        
+        # Check cache
+        cache_key = message.lower().strip()
+        if cache_key in _cache:
+            cached = _cache[cache_key]
+            return jsonify({'response': cached['response'], 'response_time': 0.001, 'source': cached['source']})
+        
+        _processing = True
         try:
             t = time.time()
             bot = get_chatbot()
             response = bot.chat(message)
             rt = time.time() - t
+            
             _stats['total_queries'] += 1
             _stats['total_time'] += rt
             _stats['avg_response_time'] = _stats['total_time'] / _stats['total_queries']
+            
             source = 'wikipedia' if 'Wikipedia' in response else 'books' if 'Book database' in response else 'local'
+            
+            # Cache response (keep last 100 unique queries)
+            if len(_cache) > 100:
+                oldest = list(_cache.keys())[0]
+                del _cache[oldest]
+            _cache[cache_key] = {'response': response, 'source': source}
+            
             _history[sid].append({'user': message, 'bot': response, 'source': source, 'time': round(rt, 3)})
             if len(_history[sid]) > 50:
                 _history[sid] = _history[sid][-50:]
+            
             return jsonify({'response': response, 'response_time': round(rt, 3), 'source': source})
         except Exception as e:
-            return jsonify({'response': str(e)})
+            return jsonify({'response': str(e), 'source': 'local', 'response_time': 0})
+        finally:
+            _processing = False
 
     @app.route('/history')
     def history():
@@ -70,10 +106,10 @@ def create_app():
                            'weights': f'{obj.input_dim * obj.hidden1 + obj.hidden1 * obj.hidden2 + obj.hidden2:,}',
                            'training_count': getattr(obj, 'training_count', 0)}
         return jsonify({'uptime': time.time() - _stats['start_time'], 'memory_mb': round(mem, 1),
-                       'stats': _stats, 'neural_networks': nn})
+                       'stats': _stats, 'neural_networks': nn, 'cache_size': len(_cache)})
 
     @app.route('/health')
     def health():
-        return jsonify({'status': 'ok'})
+        return jsonify({'status': 'ok', 'processing': _processing})
 
     return app

@@ -36,6 +36,9 @@ class ConversationalAI:
         self._history = []
         self._entities = []  # Track entities mentioned in conversation
         self._user_context = {}  # Remember user info
+        self._wiki_cache = {}  # Cache Wikipedia lookups
+        self._neural_mapper = None  # Neural Wikipedia mapper
+        self._last_query_topic = None  # Track last query for learning
 
     def _get_generator(self):
         """Lazy-load DistilGPT2 with visual progress bar."""
@@ -137,6 +140,21 @@ class ConversationalAI:
                 sys.stdout.flush()
                 logger.debug(f"T5 Paraphrase not available: {e}")
         return self._rewriter
+
+    def _get_neural_mapper(self):
+        """Lazy-load the neural Wikipedia mapper."""
+        if self._neural_mapper is None:
+            try:
+                from .neural_wiki_mapper import NeuralWikipediaMapper
+                self._neural_mapper = NeuralWikipediaMapper()
+                # Load saved mappings if available
+                import os
+                mapper_path = os.path.join(os.path.dirname(__file__), '..', 'wiki_mappings.json')
+                self._neural_mapper.load(mapper_path)
+                logger.info("Neural Wikipedia mapper loaded")
+            except Exception as e:
+                logger.debug(f"Neural mapper not available: {e}")
+        return self._neural_mapper
 
     def chat(self, message: str) -> str:
         """
@@ -442,84 +460,184 @@ class ConversationalAI:
         return None
 
     def _get_facts(self, topic: str) -> Optional[str]:
-        """Get facts about a topic from Wikipedia."""
+        """Get facts about a topic from Wikipedia using dynamic search."""
+        # Check cache first
+        cache_key = topic.lower().strip()
+        if cache_key in self._wiki_cache:
+            return self._wiki_cache[cache_key]
+
         wiki = self._get_wiki()
         if not wiki:
             return None
 
-        # Common term mappings (ambiguous terms → correct Wikipedia page)
-        mappings = {
-            'bike': 'bicycle',
-            'car': 'automobile',
-            'phone': 'telephone',
-            'ai': 'artificial intelligence',
-            'ml': 'machine learning',
-            'python': 'python (programming language)',
-            'javascript': 'javascript',
-            'java': 'java (programming language)',
-            'rust': 'rust (programming language)',
-            'go': 'go (programming language)',
-            'swift': 'swift (programming language)',
-            'kotlin': 'kotlin',
-            'typescript': 'typescript',
-            'ruby': 'ruby (programming language)',
-            'php': 'php',
-            'sql': 'sql',
-            'html': 'html',
-            'css': 'css',
-            'react': 'react (javascript library)',
-            'angular': 'angular (web framework)',
-            'vue': 'vue.js',
-            'node': 'node.js',
-            'docker': 'docker (software)',
-            'kubernetes': 'kubernetes',
-            'linux': 'linux',
-            'windows': 'microsoft windows',
-            'macos': 'macos',
-            'android': 'android (operating system)',
-            'ios': 'ios',
-            'blockchain': 'blockchain',
-            'bitcoin': 'bitcoin',
-            'ethereum': 'ethereum',
-            'machine learning': 'machine learning',
-            'deep learning': 'deep learning',
-            'neural network': 'artificial neural network',
-            'quantum computing': 'quantum computing',
-            'ufo': 'unidentified flying object',
-            'ufos': 'unidentified flying object',
-            'aerial phenomena': 'unidentified aerial phenomenon',
-            'aerial phenomenon': 'unidentified aerial phenomenon',
-            'uap': 'unidentified aerial phenomenon',
-            'uaps': 'unidentified aerial phenomenon',
-            'unidentified aerial phenomena': 'unidentified aerial phenomenon',
-        }
+        result = None
 
-        # Try mapped term first if available
-        if topic.lower() in mappings:
-            try:
-                page = wiki.page(mappings[topic.lower()])
-                if page.exists() and 'may refer to' not in page.summary[:100]:
-                    sentences = page.summary.split('. ')
-                    return '. '.join(sentences[:3]) + '.'
-            except Exception:
-                pass
+        # Strategy 1: Try direct page lookup
+        result = self._try_direct_page(wiki, topic)
+        if result:
+            self._wiki_cache[cache_key] = result
+            return result
 
-        # Try direct search
+        # Strategy 2: Dynamic Wikipedia search
+        result = self._search_wikipedia_dynamic(wiki, topic)
+        if result:
+            self._wiki_cache[cache_key] = result
+            return result
+
+        # Strategy 3: Try common variations
+        variations = self._generate_variations(topic)
+        for variation in variations:
+            result = self._try_direct_page(wiki, variation)
+            if result:
+                self._wiki_cache[cache_key] = result
+                return result
+
+        return None
+
+    def _try_direct_page(self, wiki, topic: str) -> Optional[str]:
+        """Try to get a Wikipedia page directly by title."""
         try:
             page = wiki.page(topic)
             if page.exists():
-                # Check if it's a disambiguation page
-                if 'may refer to' in page.summary[:100]:
-                    # Try to find the most common meaning
-                    # For now, just return the first option
-                    pass
-                else:
-                    sentences = page.summary.split('. ')
-                    return '. '.join(sentences[:3]) + '.'
+                summary = page.summary
+                # Skip disambiguation pages
+                if 'may refer to' in summary[:200]:
+                    return None
+                # Skip very short summaries (likely stubs)
+                if len(summary) < 50:
+                    return None
+                sentences = summary.split('. ')
+                return '. '.join(sentences[:3]) + '.'
         except Exception:
             pass
+        return None
+
+    def _search_wikipedia_dynamic(self, wiki, topic: str) -> Optional[str]:
+        """Dynamically search Wikipedia for the best matching page."""
+        try:
+            # Use Wikipedia's search API
+            search_results = wiki.search(topic, results=10)
+
+            if not search_results:
+                return None
+
+            # Use neural mapper if available
+            mapper = self._get_neural_mapper()
+            if mapper:
+                # Get valid page titles
+                valid_titles = []
+                valid_pages = {}
+                for title in search_results:
+                    try:
+                        page = wiki.page(title)
+                        if page.exists() and 'may refer to' not in page.summary[:200]:
+                            valid_titles.append(title)
+                            valid_pages[title] = page
+                    except Exception:
+                        continue
+
+                if valid_titles:
+                    # Neural mapper picks the best
+                    best_title = mapper.predict(topic, valid_titles)
+                    if best_title and best_title in valid_pages:
+                        page = valid_pages[best_title]
+                        sentences = page.summary.split('. ')
+                        result = '. '.join(sentences[:3]) + '.'
+                        
+                        # Train the mapper on this lookup
+                        mapper.train(topic, best_title, positive=True)
+                        
+                        return result
+
+            # Fallback: rule-based scoring
+            best_page = None
+            best_score = 0
+
+            topic_lower = topic.lower()
+            topic_words = set(topic_lower.split())
+
+            for title in search_results:
+                try:
+                    page = wiki.page(title)
+                    if not page.exists():
+                        continue
+
+                    summary = page.summary
+
+                    # Skip disambiguation pages
+                    if 'may refer to' in summary[:200]:
+                        continue
+
+                    # Score based on title similarity
+                    title_lower = title.lower()
+                    score = 0
+
+                    # Exact match
+                    if title_lower == topic_lower:
+                        score += 100
+
+                    # Title contains topic
+                    elif topic_lower in title_lower:
+                        score += 50
+
+                    # Topic contains title (for multi-word topics)
+                    elif any(w in topic_lower for w in title_lower.split()):
+                        score += 30
+
+                    # Word overlap
+                    title_words = set(title_lower.split())
+                    overlap = len(topic_words & title_words)
+                    score += overlap * 10
+
+                    # Prefer longer summaries (more informative)
+                    score += min(len(summary) / 1000, 5)
+
+                    if score > best_score:
+                        best_score = score
+                        best_page = page
+
+                except Exception:
+                    continue
+
+            if best_page and best_score >= 20:
+                # Train mapper on this result
+                if mapper:
+                    mapper.train(topic, best_page.title, positive=True)
+                
+                sentences = best_page.summary.split('. ')
+                return '. '.join(sentences[:3]) + '.'
+
+        except Exception as e:
+            logger.debug(f"Wikipedia search failed: {e}")
 
         return None
+
+    def _generate_variations(self, topic: str) -> List[str]:
+        """Generate common variations of a topic for Wikipedia lookup."""
+        variations = []
+        topic_lower = topic.lower()
+
+        # Common patterns
+        # "X programming" -> "X (programming language)"
+        if 'programming' in topic_lower:
+            variations.append(f"{topic} (programming language)")
+
+        # "X language" -> "X (programming language)"
+        if 'language' in topic_lower:
+            variations.append(topic.replace('language', '(programming language)'))
+
+        # "X js" -> "X.js"
+        if topic_lower.endswith('js'):
+            variations.append(topic[:-2] + '.js')
+
+        # "X dot Y" -> "X.Y"
+        if ' dot ' in topic_lower:
+            variations.append(topic.replace(' dot ', '.'))
+
+        # Add parentheses for disambiguation
+        variations.append(f"{topic} ({topic})")
+
+        return variations
 
     def _respond(self, message: str, intent: Dict, facts: Optional[str], sources: List[str] = None, confidence: Optional[str] = None) -> str:
         """Generate a natural response."""
@@ -847,3 +965,12 @@ class ConversationalAI:
         self._entities.extend(entities)
         if len(self._entities) > 5:
             self._entities = self._entities[-5:]
+        
+        # Save neural mapper periodically
+        if self._neural_mapper and len(self._history) % 5 == 0:
+            try:
+                import os
+                mapper_path = os.path.join(os.path.dirname(__file__), '..', 'wiki_mappings.json')
+                self._neural_mapper.save(mapper_path)
+            except Exception:
+                pass

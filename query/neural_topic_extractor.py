@@ -165,8 +165,23 @@ class NeuralTopicExtractor:
         # Sort by position to maintain order
         selected.sort(key=lambda x: x[0])
         
+        # Filter out stop words
+        filtered = [(pos, word) for pos, word in selected 
+                    if word.lower() not in self.STOP_WORDS]
+        
+        # If all filtered, keep at least the first non-stop word
+        if not filtered and selected:
+            for pos, word in selected:
+                if word.lower() not in self.STOP_WORDS:
+                    filtered = [(pos, word)]
+                    break
+        
+        # If still empty, use top scored word regardless
+        if not filtered:
+            filtered = [(word_scores[0][2], word_scores[0][1])]
+        
         # Combine into topic
-        topic = ' '.join(word for _, word in selected)
+        topic = ' '.join(word for _, word in filtered)
         
         return topic.lower()
     

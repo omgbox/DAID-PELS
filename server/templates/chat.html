@@ -13,43 +13,111 @@
         <span class="snackbar-text"></span>
     </div>
 
-    <div class="header">
-        <h1>DAID-PELS</h1>
-        <span class="status">Online</span>
-        <button class="stats-toggle" onclick="toggleStats()">Stats</button>
-    </div>
-
-    <!-- Stats Panel -->
-    <div class="stats-panel" id="statsPanel">
-        <div class="stats-header">
-            <h3>System Statistics</h3>
-            <button onclick="toggleStats()">×</button>
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <div class="sidebar-logo">D</div>
+                <div class="sidebar-title">DAID-PELS</div>
+            </div>
+            <button class="new-session-btn" onclick="newSession()">
+                <span>+</span> New Session
+            </button>
         </div>
-        <div class="stats-content" id="statsContent">
-            <div class="loading">Loading stats...</div>
-        </div>
-    </div>
-
-    <div class="chat-container" id="chat">
-        <div class="welcome" id="welcome">
-            <h2>DAID-PELS</h2>
-            <p>Ask me anything about books, the world, or just chat!</p>
-            <div class="suggestions">
-                <div class="suggestion" onclick="sendSuggestion('what is Python?')">What is Python?</div>
-                <div class="suggestion" onclick="sendSuggestion('who created Rust?')">Who created Rust?</div>
-                <div class="suggestion" onclick="sendSuggestion('what are UFOs?')">What are UFOs?</div>
-                <div class="suggestion" onclick="sendSuggestion('tell me about quantum computing')">Quantum computing</div>
-                <div class="suggestion" onclick="sendSuggestion('hello')">Say hello</div>
+        
+        <div class="sidebar-sessions" id="sessionsList">
+            <div class="session-item active" data-session="default">
+                <div class="session-name">New Chat</div>
+                <div class="session-model">Wikipedia + Local</div>
             </div>
         </div>
-        <div class="typing" id="typing">
-            <span></span><span></span><span></span>
+        
+        <div class="sidebar-footer">
+            <div class="dark-mode-toggle" onclick="toggleStats()">
+                <span>📊</span>
+                <span>Stats</span>
+            </div>
         </div>
     </div>
 
-    <div class="input-container">
-        <input type="text" id="messageInput" placeholder="Message DAID-PELS..." autocomplete="off">
-        <button id="sendBtn" onclick="sendMessage()">Send</button>
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="main-header">
+            <button class="menu-btn" onclick="toggleSidebar()">
+                <div class="menu-icon">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </button>
+        </div>
+
+        <!-- Stats Panel -->
+        <div class="stats-panel" id="statsPanel">
+            <div class="stats-header">
+                <h3>System Statistics</h3>
+                <button onclick="toggleStats()">×</button>
+            </div>
+            <div class="stats-content" id="statsContent">
+                <div class="loading">Loading stats...</div>
+            </div>
+        </div>
+
+        <div class="chat-area" id="chat">
+            <!-- Welcome Screen -->
+            <div class="welcome-screen" id="welcomeScreen">
+                <h1 class="welcome-title">DAID-PELS</h1>
+                
+                <div class="input-card">
+                    <textarea id="messageInput" placeholder="Ask me anything..." rows="4"></textarea>
+                    <div class="input-card-footer">
+                        <div class="input-card-left">
+                            <button class="agent-selector">
+                                <div class="agent-icon">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                                <span>Agent</span>
+                                <span>▾</span>
+                            </button>
+                        </div>
+                        <div class="input-card-right">
+                            <button class="image-btn" title="Attach image">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                                    <polyline points="21,15 16,10 5,21"/>
+                                </svg>
+                            </button>
+                            <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                                <div class="send-icon"></div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="model-info">
+                    <div class="model-selector">
+                        <span class="model-dot"></span>
+                        <span>Wikipedia + Local</span>
+                        <span>▾</span>
+                    </div>
+                    <div class="model-selector">
+                        <span class="model-dot"></span>
+                        <span>Neural</span>
+                        <span>▾</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages Container -->
+            <div id="messagesContainer" style="display: none;">
+                <div class="typing" id="typing">
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>

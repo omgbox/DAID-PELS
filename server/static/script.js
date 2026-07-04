@@ -5,55 +5,110 @@ const typing = document.getElementById('typing');
 const statsPanel = document.getElementById('statsPanel');
 const statsContent = document.getElementById('statsContent');
 const snackbar = document.getElementById('snackbar');
-const welcome = document.getElementById('welcome');
+const welcomeScreen = document.getElementById('welcomeScreen');
+const messagesContainer = document.getElementById('messagesContainer');
+const sidebar = document.getElementById('sidebar');
+const sessionsList = document.getElementById('sessionsList');
 
 // Generate unique session ID
-const sessionId = localStorage.getItem('chat_session_id') || generateSessionId();
-localStorage.setItem('chat_session_id', sessionId);
+let currentSession = localStorage.getItem('chat_session_id') || generateSessionId();
+localStorage.setItem('chat_session_id', currentSession);
 
 // State
 let lastStats = null;
 let statsInterval = null;
+let sessions = JSON.parse(localStorage.getItem('chat_sessions') || '[]');
 
 function generateSessionId() {
     return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
-// Send on Enter key
-messageInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendMessage();
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    loadHistory();
+    loadStats();
+    renderSessions();
+    
+    // Auto-resize textarea
+    messageInput.addEventListener('input', autoResize);
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    
+    // Auto-refresh stats
+    setInterval(() => {
+        if (statsPanel.classList.contains('show')) {
+            loadStats();
+        }
+    }, 2000);
 });
 
-// Focus input on load
-messageInput.focus();
+function autoResize() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+}
 
-// Load chat history on page load
-loadHistory();
+// Sidebar
+function toggleSidebar() {
+    sidebar.classList.toggle('show');
+}
 
-// Load stats on page load
-loadStats();
+// Sessions
+function newSession() {
+    currentSession = generateSessionId();
+    localStorage.setItem('chat_session_id', currentSession);
+    
+    // Add to sessions list
+    sessions.unshift({
+        id: currentSession,
+        name: 'New Chat',
+        model: 'Wikipedia + Local',
+        time: new Date().toLocaleTimeString()
+    });
+    
+    if (sessions.length > 10) sessions = sessions.slice(0, 10);
+    localStorage.setItem('chat_sessions', JSON.stringify(sessions));
+    
+    // Clear messages
+    messagesContainer.innerHTML = '<div class="typing" id="typing"><span></span><span></span><span></span></div>';
+    welcomeScreen.style.display = 'flex';
+    messagesContainer.style.display = 'none';
+    
+    renderSessions();
+    messageInput.focus();
+}
 
-// Auto-refresh stats every 2 seconds when panel is open
-setInterval(() => {
-    if (statsPanel.classList.contains('show')) {
-        loadStats();
-    }
-}, 2000);
+function renderSessions() {
+    sessionsList.innerHTML = sessions.map((s, i) => `
+        <div class="session-item ${s.id === currentSession ? 'active' : ''}" onclick="switchSession('${s.id}')">
+            <div class="session-name">${s.name}</div>
+            <div class="session-model">${s.model}</div>
+        </div>
+    `).join('');
+}
 
+function switchSession(sessionId) {
+    currentSession = sessionId;
+    localStorage.setItem('chat_session_id', sessionId);
+    
+    // Clear and reload
+    messagesContainer.innerHTML = '<div class="typing" id="typing"><span></span><span></span><span></span></div>';
+    loadHistory();
+    renderSessions();
+}
+
+// Stats
 function toggleStats() {
     statsPanel.classList.toggle('show');
     if (statsPanel.classList.contains('show')) {
         loadStats();
-        statsInterval = setInterval(loadStats, 1000);
-    } else {
-        if (statsInterval) {
-            clearInterval(statsInterval);
-            statsInterval = null;
-        }
     }
 }
 
-// Snackbar notification
+// Snackbar
 function showSnackbar(source, text) {
     const icons = {
         'wikipedia': '🌐',
@@ -62,16 +117,8 @@ function showSnackbar(source, text) {
         'thinking': '🧠'
     };
     
-    const colors = {
-        'wikipedia': '#4ecca3',
-        'books': '#e94560',
-        'local': '#0f3460',
-        'thinking': '#666'
-    };
-    
     snackbar.querySelector('.snackbar-icon').textContent = icons[source] || '💬';
-    snackbar.querySelector('.snackbar-text').textContent = text || getSourceText(source);
-    snackbar.style.background = colors[source] || '#0f3460';
+    snackbar.querySelector('.snackbar-text').textContent = text || 'Thinking...';
     snackbar.classList.add('show');
     
     setTimeout(() => {
@@ -79,31 +126,23 @@ function showSnackbar(source, text) {
     }, 2000);
 }
 
-function getSourceText(source) {
-    const texts = {
-        'wikipedia': 'Searching Wikipedia...',
-        'books': 'Checking book database...',
-        'local': 'Thinking...',
-        'thinking': 'Processing...'
-    };
-    return texts[source] || 'Thinking...';
-}
-
-// Load chat history
+// Load history
 async function loadHistory() {
     try {
-        const response = await fetch(`/history?session_id=${sessionId}`);
+        const response = await fetch(`/history?session_id=${currentSession}`);
         const data = await response.json();
         
         if (data.history && data.history.length > 0) {
-            // Hide welcome message
-            welcome.style.display = 'none';
+            welcomeScreen.style.display = 'none';
+            messagesContainer.style.display = 'block';
             
-            // Load all messages
             data.history.forEach(msg => {
                 addMessageToChat(msg.user, 'user');
                 addMessageToChat(msg.bot, 'bot', msg.time, msg.source);
             });
+        } else {
+            welcomeScreen.style.display = 'flex';
+            messagesContainer.style.display = 'none';
         }
     } catch (error) {
         console.log('Failed to load history');
@@ -144,11 +183,11 @@ function renderStats(data) {
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">Total Queries</div>
-                    <div class="stat-value" id="stat-queries">${data.stats.total_queries}</div>
+                    <div class="stat-value">${data.stats.total_queries}</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">Avg Response</div>
-                    <div class="stat-value" id="stat-avg-time">${avgTime.toFixed(2)}s</div>
+                    <div class="stat-value">${avgTime.toFixed(2)}s</div>
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: ${progress}%"></div>
                     </div>
@@ -166,13 +205,12 @@ function renderStats(data) {
             <div class="neural-network">
                 <div class="nn-header">
                     <span class="nn-name">${nn.name}</span>
-                    <span class="nn-status loaded">${nn.status}</span>
+                    <span class="nn-status">loaded</span>
                 </div>
                 <div class="nn-details">
-                    <span>Architecture: ${nn.architecture}</span>
-                    <span>Weights: ${nn.weights}</span>
+                    <span>${nn.architecture}</span>
+                    <span>${nn.weights} weights</span>
                     ${nn.training_count !== undefined ? `<span>Trained: ${nn.training_count}x</span>` : ''}
-                    ${nn.mappings_count !== undefined ? `<span>Mappings: ${nn.mappings_count}</span>` : ''}
                 </div>
                 ${nn.training_count !== undefined ? `
                 <div class="progress-bar">
@@ -192,63 +230,49 @@ function formatUptime(seconds) {
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
     
-    if (hours > 0) {
-        return `${hours}h ${minutes}m`;
-    } else if (minutes > 0) {
-        return `${minutes}m ${secs}s`;
-    } else {
-        return `${secs}s`;
-    }
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    if (minutes > 0) return `${minutes}m ${secs}s`;
+    return `${secs}s`;
 }
 
-function sendSuggestion(text) {
-    messageInput.value = text;
-    sendMessage();
-}
-
+// Messages
 async function sendMessage() {
     const message = messageInput.value.trim();
     if (!message) return;
 
-    // Hide welcome
-    welcome.style.display = 'none';
-
+    // Switch to message view
+    welcomeScreen.style.display = 'none';
+    messagesContainer.style.display = 'block';
+    
     // Add user message
     addMessageToChat(message, 'user');
     messageInput.value = '';
+    messageInput.style.height = 'auto';
     sendBtn.disabled = true;
 
-    // Show typing indicator
+    // Show typing
     typing.classList.add('show');
-    showSnackbar('thinking', 'Processing your message...');
+    showSnackbar('thinking', 'Processing...');
     chat.scrollTop = chat.scrollHeight;
 
     try {
         const response = await fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, session_id: sessionId })
+            body: JSON.stringify({ message, session_id: currentSession })
         });
 
         const data = await response.json();
         
-        // Hide typing
         typing.classList.remove('show');
-        
-        // Show source snackbar
-        showSnackbar(data.source, `Answer from ${data.source === 'wikipedia' ? 'Wikipedia' : data.source === 'books' ? 'Book Database' : 'Local Knowledge'}`);
-        
-        // Add bot response
+        showSnackbar(data.source, `From ${data.source === 'wikipedia' ? 'Wikipedia' : data.source === 'books' ? 'Books' : 'Local'}`);
         addMessageToChat(data.response, 'bot', data.response_time, data.source);
         
-        // Update stats
-        if (statsPanel.classList.contains('show')) {
-            loadStats();
-        }
+        if (statsPanel.classList.contains('show')) loadStats();
     } catch (error) {
         typing.classList.remove('show');
         showSnackbar('local', 'Error occurred');
-        addMessageToChat('Sorry, something went wrong. Please try again.', 'bot');
+        addMessageToChat('Sorry, something went wrong.', 'bot');
     }
 
     sendBtn.disabled = false;
@@ -261,32 +285,23 @@ function addMessageToChat(text, type, responseTime = null, source = null) {
     
     let content = '';
     
-    // Parse source attribution
     if (type === 'bot' && text.includes('— Source:')) {
         const parts = text.split('— Source:');
-        content = `
-            <div>${parts[0].trim()}</div>
-            <div class="source">— Source:${parts[1]}</div>
-        `;
+        content = `<div>${parts[0].trim()}</div><div class="source">— Source:${parts[1]}</div>`;
     } else {
         content = text;
     }
     
-    // Add response time for bot messages
     if (type === 'bot' && responseTime !== null) {
         content += `<div class="response-time">${responseTime.toFixed(2)}s</div>`;
     }
     
-    // Add source badge
     if (type === 'bot' && source) {
-        const sourceBadge = source === 'wikipedia' ? '🌐 Wikipedia' : 
-                           source === 'books' ? '📚 Books' : '💬 Local';
-        content += `<div class="source-badge">${sourceBadge}</div>`;
+        const badge = source === 'wikipedia' ? '🌐 Wikipedia' : source === 'books' ? '📚 Books' : '💬 Local';
+        content += `<div class="source-badge">${badge}</div>`;
     }
     
     div.innerHTML = content;
-    
-    // Insert before typing indicator
-    chat.insertBefore(div, typing);
+    messagesContainer.insertBefore(div, typing);
     chat.scrollTop = chat.scrollHeight;
 }

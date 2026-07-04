@@ -10,11 +10,11 @@ pysbd==0.3.4                   # Sentence boundary detection
 
 # Search and Ranking
 rank-bm25==0.2.2               # BM25Okapi implementation
-                               # (depends on numpy, which it brings)
 
-# Neural (for MiniGPT, Word2Vec, MultiDimScorer)
+# Neural (for MiniGPT, Word2Vec, MultiDimScorer, DistilGPT2)
 torch                          # PyTorch (CPU-only)
 numpy                          # Numerical computing
+transformers>=4.30.0           # Hugging Face Transformers (for DistilGPT2)
 
 # General Knowledge (for conversational chatbot)
 wikipedia-api>=0.6.0           # Wikipedia access for open-domain questions

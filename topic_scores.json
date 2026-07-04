@@ -1,0 +1,17 @@
+{
+  "word_scores": {
+    "wiki": 0.6,
+    "what": 0.45,
+    "books": 0.6,
+    "do": 0.45,
+    "you": 0.45,
+    "have": 0.45,
+    "tell": 0.45,
+    "me": 0.45,
+    "something": 0.45,
+    "about": 0.45,
+    "distributed": 0.6,
+    "networks": 0.45
+  },
+  "training_count": 3
+}

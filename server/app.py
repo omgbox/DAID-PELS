@@ -6,15 +6,17 @@ Creates and configures the Flask app.
 import sys
 import os
 import time
+import json
 import psutil
 from pathlib import Path
+from collections import defaultdict
 
 # Add parent directory to path (C:\projects)
 parent_dir = str(Path(__file__).parent.parent.parent)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session
 
 
 def create_app():
@@ -33,6 +35,9 @@ def create_app():
         'start_time': time.time(),
     }
     
+    # Chat history storage (per session)
+    _chat_history = defaultdict(list)
+    
     def get_chatbot():
         nonlocal _chatbot
         if _chatbot is None:
@@ -49,6 +54,7 @@ def create_app():
     def chat():
         data = request.get_json()
         message = data.get('message', '')
+        session_id = data.get('session_id', 'default')
         
         if not message:
             return jsonify({'response': 'Please enter a message.'})
@@ -64,13 +70,47 @@ def create_app():
             _stats['total_time'] += response_time
             _stats['avg_response_time'] = _stats['total_time'] / _stats['total_queries']
             
+            # Determine source from response
+            source = 'local'
+            if '— Source: Wikipedia' in response or '— Sources:' in response:
+                source = 'wikipedia'
+            elif '— Source: Book database' in response:
+                source = 'books'
+            
+            # Store in history
+            _chat_history[session_id].append({
+                'user': message,
+                'bot': response,
+                'source': source,
+                'time': round(response_time, 3),
+                'timestamp': time.time()
+            })
+            
+            # Keep only last 50 messages per session
+            if len(_chat_history[session_id]) > 50:
+                _chat_history[session_id] = _chat_history[session_id][-50:]
+            
             return jsonify({
                 'response': response,
                 'response_time': round(response_time, 3),
+                'source': source,
                 'stats': _stats
             })
         except Exception as e:
             return jsonify({'response': f'Error: {str(e)}'})
+    
+    @app.route('/history', methods=['GET'])
+    def get_history():
+        session_id = request.args.get('session_id', 'default')
+        history = _chat_history.get(session_id, [])
+        return jsonify({'history': history})
+    
+    @app.route('/history/clear', methods=['POST'])
+    def clear_history():
+        data = request.get_json()
+        session_id = data.get('session_id', 'default')
+        _chat_history[session_id] = []
+        return jsonify({'status': 'cleared'})
     
     @app.route('/health')
     def health():

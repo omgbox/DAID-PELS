@@ -7,6 +7,12 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+    <!-- Snackbar -->
+    <div class="snackbar" id="snackbar">
+        <span class="snackbar-icon"></span>
+        <span class="snackbar-text"></span>
+    </div>
+
     <div class="header">
         <h1>DAID-PELS</h1>
         <span class="status">Online</span>
@@ -25,7 +31,7 @@
     </div>
 
     <div class="chat-container" id="chat">
-        <div class="welcome">
+        <div class="welcome" id="welcome">
             <h2>DAID-PELS Chat</h2>
             <p>Ask me anything about books, the world, or just chat!</p>
             <div class="suggestions">

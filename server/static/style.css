@@ -13,6 +13,49 @@ body {
     flex-direction: column;
 }
 
+/* Snackbar */
+.snackbar {
+    position: fixed;
+    bottom: 80px;
+    left: 20px;
+    background: #0f3460;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 1000;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.snackbar.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.snackbar-icon {
+    font-size: 1.2em;
+}
+
+.snackbar-text {
+    font-size: 0.9em;
+}
+
+/* Source Badge */
+.source-badge {
+    font-size: 0.7em;
+    color: #4ecca3;
+    margin-top: 5px;
+    padding: 3px 8px;
+    background: rgba(78, 204, 163, 0.1);
+    border-radius: 10px;
+    display: inline-block;
+}
+
 .header {
     background: #16213e;
     padding: 15px 20px;

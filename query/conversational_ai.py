@@ -386,9 +386,33 @@ class ConversationalAI:
         if match:
             return self._expand_topic(match.group(1).strip(), expand_map)
 
+        # Pattern: "did/do/does X have Y" -> "X Y" (e.g., "did Jesus have a mother" -> "Jesus mother")
+        match = re.search(r'(?:did|do|does|have|has|had)\s+(.+?)\s+(?:have|has|had)\s+(?:a\s+|an\s+|the\s+)?(.+)', m)
+        if match:
+            subject = match.group(1).strip()
+            object_ = match.group(2).strip()
+            return self._expand_topic(f"{subject} {object_}", expand_map)
+
+        # Pattern: "is/was X a Y?" -> "X Y" (e.g., "is Jesus God" -> "Jesus God")
+        match = re.search(r'(?:is|are|was|were)\s+(.+?)\s+(?:a\s+|an\s+|the\s+)?(.+?)(?:\s+in\s+|\s+of\s+|\s+for\s+|\s+on\s+|$)', m)
+        if match:
+            subject = match.group(1).strip()
+            object_ = match.group(2).strip()
+            if len(subject) > 2 and len(object_) > 2:
+                return self._expand_topic(f"{subject} {object_}", expand_map)
+
+        # Pattern: "can/could X Y?" -> "X Y" (e.g., "can Jesus heal" -> "Jesus healing")
+        match = re.search(r'(?:can|could|will|would|should|may|might)\s+(.+?)\s+(.+?)(?:\?|$)', m)
+        if match:
+            subject = match.group(1).strip()
+            action = match.group(2).strip()
+            if len(subject) > 2 and len(action) > 2:
+                return self._expand_topic(f"{subject} {action}", expand_map)
+
         # Fallback: remove question words and use the rest
         stop = {'what', 'who', 'when', 'where', 'why', 'how', 'which',
                 'is', 'are', 'was', 'were', 'do', 'does', 'did',
+                'have', 'has', 'had',
                 'the', 'a', 'an', 'of', 'in', 'for', 'and', 'or', 'to',
                 'tell', 'me', 'about', 'can', 'you', 'please',
                 'first', 'last', 'next', 'biggest', 'smallest', 'oldest',
@@ -512,10 +536,54 @@ class ConversationalAI:
             pass
         return None
 
+    def _expand_compound_topic(self, topic: str) -> List[str]:
+        """Expand compound topics for better Wikipedia search."""
+        expansions = [topic]  # Always try original first
+        
+        topic_lower = topic.lower()
+        words = topic_lower.split()
+        
+        # Common compound expansions
+        compound_expansions = {
+            'jesus mother': ['Mary mother of Jesus', 'Virgin Mary', 'Mary mother of God'],
+            'jesus father': ['God in Christianity', 'Joseph husband of Mary'],
+            'jesus child': ['Childhood of Jesus', 'Jesus in Christianity'],
+            'jesus disciple': ['Disciples of Jesus', 'Apostle'],
+            'jesus crucifixion': ['Crucifixion of Jesus', 'Passion of Jesus'],
+            'jesus resurrection': ['Resurrection of Jesus', 'Empty tomb'],
+            'mary mother': ['Mary mother of Jesus', 'Virgin Mary'],
+            'god son': ['Son of God', 'Jesus Christ'],
+            'holy spirit': ['Holy Spirit', 'Holy Spirit in Christianity'],
+        }
+        
+        # Check for compound expansions
+        for key, values in compound_expansions.items():
+            if all(w in topic_lower for w in key.split()):
+                expansions.extend(values)
+        
+        # If topic has 2+ words, try searching for each significant word
+        if len(words) >= 2:
+            # Try searching for just the main subject (usually first word)
+            significant = [w for w in words if w not in {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'did', 'do', 'does', 'have', 'has', 'had'}]
+            if significant:
+                expansions.append(' '.join(significant))
+        
+        return expansions
+
     def _search_wikipedia_dynamic(self, wiki, topic: str) -> Optional[str]:
         """Dynamically search Wikipedia for the best matching page."""
         try:
-            # Use Wikipedia's search API
+            # Get expanded topics to search
+            search_topics = self._expand_compound_topic(topic)
+            
+            # Try each expanded topic
+            for search_topic in search_topics:
+                # Try direct page lookup first
+                result = self._try_direct_page(wiki, search_topic)
+                if result:
+                    return result
+            
+            # Fall back to search API
             search_results = wiki.search(topic, results=10)
 
             if not search_results:

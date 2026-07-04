@@ -33,7 +33,7 @@ class NeuralTopicExtractor:
         'this', 'that', 'these', 'those', 'it', 'its',
     }
     
-    def __init__(self, input_dim: int = 16, hidden1: int = 128, hidden2: int = 64):
+    def __init__(self, input_dim: int = 24, hidden1: int = 128, hidden2: int = 64):
         self.input_dim = input_dim
         self.hidden1 = hidden1
         self.hidden2 = hidden2
@@ -132,6 +132,44 @@ class NeuralTopicExtractor:
         # 16. Is verb-like (contains common verb patterns)
         verb_suffixes = {'ed', 'ing', 'es', 's'}
         features.append(1.0 if any(word.lower().endswith(s) for s in verb_suffixes) else 0.0)
+        
+        # 17. Is common verb
+        common_verbs = {'is', 'are', 'was', 'were', 'have', 'has', 'had', 'do', 'does', 'did',
+                       'can', 'could', 'will', 'would', 'should', 'may', 'might',
+                       'created', 'made', 'built', 'invented', 'discovered', 'wrote'}
+        features.append(1.0 if word.lower() in common_verbs else 0.0)
+        
+        # 18. Is noun-like (common noun endings)
+        noun_suffixes = {'tion', 'sion', 'ment', 'ness', 'ity', 'ence', 'ance', 'er', 'or', 'ist'}
+        features.append(1.0 if any(word.lower().endswith(s) for s in noun_suffixes) else 0.0)
+        
+        # 19. Is entity (proper noun pattern)
+        features.append(1.0 if len(word) > 2 and word[0].isupper() and not word.isupper() else 0.0)
+        
+        # 20. Context: previous word is question word
+        if position > 0:
+            prev_word = query.split()[position - 1].lower() if position <= len(query.split()) else ''
+            features.append(1.0 if prev_word in question_words else 0.0)
+        else:
+            features.append(0.0)
+        
+        # 21. Is subject candidate (first non-stop word)
+        for w in query.lower().split():
+            if w not in self.STOP_WORDS:
+                features.append(1.0 if word.lower() == w else 0.0)
+                break
+        else:
+            features.append(0.0)
+        
+        # 22. Is object candidate (word after verb)
+        features.append(0.0)  # Placeholder
+        
+        # 23. Character: starts with consonant cluster
+        features.append(1.0 if len(word) > 2 and word[0].lower() not in 'aeiou' and word[1].lower() not in 'aeiou' else 0.0)
+        
+        # 24. Word frequency hint (common words score higher)
+        common_words = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'have', 'has', 'had'}
+        features.append(1.0 if word.lower() in common_words else 0.3)
         
         return features[:self.input_dim]
     

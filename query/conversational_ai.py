@@ -39,6 +39,8 @@ class ConversationalAI:
         self._wiki_cache = {}  # Cache Wikipedia lookups
         self._neural_mapper = None  # Neural Wikipedia mapper
         self._topic_extractor = None  # Neural topic extractor
+        self._intent_classifier = None  # Neural intent classifier
+        self._response_selector = None  # Neural response selector
         self._last_query_topic = None  # Track last query for learning
 
     def _get_generator(self):
@@ -172,6 +174,34 @@ class ConversationalAI:
                 logger.debug(f"Neural topic extractor not available: {e}")
         return self._topic_extractor
 
+    def _get_intent_classifier(self):
+        """Lazy-load the neural intent classifier."""
+        if self._intent_classifier is None:
+            try:
+                from .neural_intent_classifier import NeuralIntentClassifier
+                self._intent_classifier = NeuralIntentClassifier()
+                import os
+                path = os.path.join(os.path.dirname(__file__), '..', 'intent_scores.json')
+                self._intent_classifier.load(path)
+                logger.info("Neural intent classifier loaded")
+            except Exception as e:
+                logger.debug(f"Neural intent classifier not available: {e}")
+        return self._intent_classifier
+
+    def _get_response_selector(self):
+        """Lazy-load the neural response selector."""
+        if self._response_selector is None:
+            try:
+                from .neural_response_selector import NeuralResponseSelector
+                self._response_selector = NeuralResponseSelector()
+                import os
+                path = os.path.join(os.path.dirname(__file__), '..', 'response_scores.json')
+                self._response_selector.load(path)
+                logger.info("Neural response selector loaded")
+            except Exception as e:
+                logger.debug(f"Neural response selector not available: {e}")
+        return self._response_selector
+
     def chat(self, message: str) -> str:
         """
         Process a message and return a natural response.
@@ -234,9 +264,45 @@ class ConversationalAI:
         return response
 
     def _instant_response(self, message: str) -> Optional[str]:
-        """Instant responses for simple social cues."""
+        """Instant responses using neural intent classification."""
         m = message.lower().strip()
-
+        
+        # Try neural intent classifier first
+        classifier = self._get_intent_classifier()
+        if classifier:
+            try:
+                intent, confidence = classifier.classify(m)
+                
+                if intent == 'greeting' and confidence > 0.7:
+                    responses = [
+                        "Hey! What's on your mind?",
+                        "Hello! Ask me anything.",
+                        "Hi there! How can I help?",
+                    ]
+                    selector = self._get_response_selector()
+                    if selector:
+                        return selector.select(responses, m)
+                    return random.choice(responses)
+                
+                if intent == 'farewell' and confidence > 0.7:
+                    responses = [
+                        "Goodbye! Have a great day!",
+                        "See you later!",
+                        "Take care! Come back anytime.",
+                    ]
+                    selector = self._get_response_selector()
+                    if selector:
+                        return selector.select(responses, m)
+                    return random.choice(responses)
+                
+                if intent == 'emotional' and confidence > 0.7:
+                    # Let the emotional handler deal with it
+                    pass
+                    
+            except Exception as e:
+                logger.debug(f"Neural classification failed: {e}")
+        
+        # Fallback to regex patterns
         # Greetings
         if re.match(r'^(hi|hello|hey|howdy|sup|yo|greetings)\b', m):
             return random.choice([

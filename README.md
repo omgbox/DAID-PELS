@@ -14,48 +14,61 @@ DAID-PELS is a chatbot that:
 3. **Searches Wikipedia** for general knowledge questions
 4. **Has natural conversations** — greetings, personal statements, emotional expressions
 5. **Maintains context** across conversation turns
+6. **Rewrites responses** naturally using T5 Paraphrase model
+7. **Shows source attribution** — tells you where information comes from
+8. **Resolves pronouns** — understands "it", "he", "she" from context
+9. **Scores response quality** — picks the best response from multiple candidates
 
 ```
 > hi
 Hey! What's on your mind?
 
 > what is rust
-Rust is a general-purpose programming language which emphasizes performance,
-type safety, concurrency, and memory safety.
+Rust is a general-purpose programming language that emphasizes performance,
+type safety, concurrency and memory safety.
+
+— Source: Wikipedia
+
+> tell me about alice
+Alice's Adventures in Wonderland is an English children's novel by Lewis Carroll
+from 1865 and tells the story of a little girl named Alice who falls into a
+fantasy world of anthropomorphic creatures through a rabbit hole.
+
+— Source: Book database
 
 > who is elizabeth
 [Book passages about Elizabeth Bennet from Pride and Prejudice]
 
-> how many islands does japan have
-Japan... consists of four major islands alongside 14,121 smaller islands.
+— Source: Book database
 
 > I love cooking
 That's great! Cooking is interesting. Tell me more about it!
-
-> when was the first ufo reported
-An unidentified flying object (UFO) is an object or phenomenon seen in the sky...
 ```
 
 ---
 
-## What's New (v2.0)
+## What's New (v2.1)
 
-### Conversational AI
-- **Natural conversations** — not just book Q&A
-- **Wikipedia integration** — answers any general knowledge question
-- **Context tracking** — remembers what was discussed
-- **Personal statements** — "I like cooking" → remembers your preferences
-- **Emotional expressions** — "I'm feeling happy" → responds appropriately
+### Response Quality
+- **T5 Paraphrase rewriter** — natural, fluent responses (not robotic)
+- **Response quality scoring** — picks the best response from multiple candidates
+- **Fact verification** — confidence indicators for multi-source information
 
-### Visual Progress
-- Loading progress bars for AI model and Wikipedia
-- Training progress with time estimates
-- Clean, informative output
+### Context Awareness
+- **Pronoun resolution** — understands "it", "he", "she", "this", "that"
+- **Entity tracking** — remembers what was discussed
+- **Multi-turn context** — maintains conversation history
 
-### Multi-Book Training
-- Train on multiple books simultaneously
-- 20+ classic books included
-- Comprehensive knowledge base
+### Source Attribution
+- **Wikipedia attribution** — "— Source: Wikipedia"
+- **Book database attribution** — "— Source: Book database"
+- **Multi-source attribution** — "— Sources: Wikipedia, Book database"
+- **Confidence indicators** — "(verified)", "(partial)" for cross-referenced facts
+
+### Multi-Source Knowledge
+- **Combined sources** — searches both books and Wikipedia
+- **Information synthesis** — merges facts from multiple sources
+- **Contextual supplementation** — adds book context to Wikipedia answers
 
 ---
 
@@ -99,8 +112,12 @@ python -m bookbot.main query
 | Conversations | ✅ Tested | Greetings, personal statements, emotions |
 | Context tracking | ✅ Tested | Follow-up questions work |
 | Multi-book training | ✅ Tested | 20+ books can be trained |
-| DistilGPT2 | ✅ Tested | 82M params, good for general queries |
-| DistilGPT2 fallback | ✅ Tested | Falls back to Wikipedia when GPT2 fails |
+| T5 Paraphrase | ✅ Tested | Natural, fluent responses |
+| Source attribution | ✅ Tested | Shows where information comes from |
+| Pronoun resolution | ✅ Tested | "it" → entity from context |
+| Response quality scoring | ✅ Tested | Picks best response |
+| Multi-source synthesis | ✅ Tested | Combines book + Wikipedia |
+| Fact verification | ✅ Tested | Confidence indicators |
 | Progress bars | ✅ Tested | Clean loading visualization |
 
 ---
@@ -117,6 +134,7 @@ python -m bookbot.main query
 | **Historical research** | "Who invented the telephone?" | Wikipedia + book context |
 | **Character analysis** | "Tell me about Darcy" | Book-based character info |
 | **World knowledge** | "What is the capital of France?" | Wikipedia lookup |
+| **Context-aware chat** | "Who created it?" | Resolves "it" from context |
 
 ---
 
@@ -131,13 +149,25 @@ Raw Text → OCR Normalize → Tokenize → POS Tag → NER → SVO Extract
 
 ### Query Pipeline
 ```
-User Message → Intent Classification → Route Decision
+User Message → Pronoun Resolution → Intent Classification → Route Decision
     ↓
-    ├── Book Query → Book DB Search → Return Passages
-    ├── General Knowledge → Wikipedia Search → Return Facts
+    ├── Book Query → Book DB Search → T5 Paraphrase → Source Attribution
+    ├── General Knowledge → Wikipedia Search → T5 Paraphrase → Source Attribution
+    ├── Multi-Source → Book + Wikipedia → Combine → Fact Verification
     ├── Personal Statement → Store Preference → Acknowledge
     ├── Emotional → Respond Empathetically
     └── Greeting/Farewell → Social Response
+```
+
+### Response Generation
+```
+Facts from Source → Generate Multiple Candidates → Score Quality → Pick Best
+    ↓
+    ├── Candidate 1: T5 Paraphrase (conversational)
+    ├── Candidate 2: T5 Paraphrase (simplified)
+    └── Candidate 3: Original facts
+    ↓
+    Score: Fluency + Relevance + Completeness → Return Best
 ```
 
 ---
@@ -150,7 +180,7 @@ User Message → Intent Classification → Route Decision
 | **Core NLP** | `core/` | `tokenizer`, `pos_tagger`, `pos_guesser`, `ner_extractor`, `svo_extractor`, `coreference`, `entity_graph`, `topic_modeler`, `temporal_reasoner` |
 | **Query** | `query/` | `trilateral_bm25`, `query_classifier`, `answer_engine`, `conversation_memory`, `contextual_rewriter`, `response_formatter`, `advanced_answer`, `style_realizer`, `prose_realizer` |
 | **Conversational** | `query/` | `conversational_ai`, `conversational_responder`, `personal_statement_handler`, `general_knowledge_retriever`, `user_profile`, `conversation_router`, `response_personalizer` |
-| **Neural** | `query/` | `minigpt` (DistilGPT2 82M params), `multi_scorer` (5-head), `svo_scorer`, `self_attention`, `token_attention`, `torch_attention` |
+| **Neural** | `query/` | `minigpt` (DistilGPT2 82M + T5 Paraphrase), `multi_scorer` (5-head), `svo_scorer`, `self_attention`, `token_attention`, `torch_attention` |
 | **Training** | `training/` | `convergence_tracker`, `pass_manager`, `visualizer`, `attention_trainer`, `self_supervised_data` |
 | **Database** | `database/` | `db_manager`, `schema.sql` (25 tables) |
 
@@ -169,7 +199,7 @@ Combines BM25 + Soundex + Double Metaphone for robust matching:
 
 ### 3. Hybrid Rule-Based + Neural Architecture
 - **Rule-based NLP**: SVO extraction, coreference, entity graphs, phonetic matching
-- **Neural components**: DistilGPT2 for generation, Word2Vec for similarity
+- **Neural components**: DistilGPT2 for generation, T5 Paraphrase for rewriting, Word2Vec for similarity
 - All running on CPU with no API calls — fully offline
 
 ### 4. Wikipedia Integration
@@ -177,6 +207,12 @@ Searches Wikipedia for general knowledge questions — no fine-tuning needed.
 
 ### 5. Self-Supervised Training
 MiniGPT and Word2Vec are trained directly on the book — no external training data needed.
+
+### 6. T5 Paraphrase Rewriting
+Uses a fine-tuned T5 model to rewrite facts into natural, conversational responses — no hallucination.
+
+### 7. Multi-Source Knowledge Synthesis
+Combines information from both book database and Wikipedia, with source attribution and confidence indicators.
 
 ---
 
@@ -201,12 +237,14 @@ All settings in `config.py`. Environment variables override paths:
 | Neural models training (all) | ~30-40 minutes (CPU) |
 | Word2Vec training (5 epochs) | ~2 minutes |
 | DistilGPT2 loading | ~2 seconds |
+| T5 Paraphrase loading | ~3 seconds |
 | Wikipedia search | ~1 second |
-| Query response time | ~1-2 seconds |
+| Query response time | ~1-3 seconds |
 | Database size (20 books) | ~170MB |
 | Dictionary entries | 206,956 |
 | CMU pronunciations | 134,000+ words |
 | DistilGPT2 parameters | 82M |
+| T5 Paraphrase parameters | 60M |
 
 ---
 
@@ -256,7 +294,7 @@ DAID-PELS/
 │   ├── general_knowledge_retriever.py  # Wikipedia search
 │   ├── user_profile.py     # User preferences
 │   ├── trilateral_bm25.py  # Phonetic-enhanced BM25
-│   ├── minigpt.py          # DistilGPT2 integration
+│   ├── minigpt.py          # DistilGPT2 + T5 Paraphrase
 │   └── ...
 ├── lib/                    # Standalone utilities
 │   ├── phonetic_matcher.py # CMU + Double Metaphone + Jaro-Winkler

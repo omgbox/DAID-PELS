@@ -61,11 +61,7 @@ async function send() {
     messages.scrollTop = messages.scrollHeight;
 
     try {
-        // Show processing steps
-        showProcessing('Understanding query...');
-        await new Promise(r => setTimeout(r, 200));
-        
-        showProcessing('Searching knowledge base...');
+        showProcessing('Searching Wikipedia...');
         
         const res = await fetch('/chat', {
             method: 'POST',
@@ -73,12 +69,10 @@ async function send() {
             body: JSON.stringify({ message: text, session_id: sessionId })
         });
         
-        showProcessing('Generating response...');
+        showProcessing('Got answer!');
         const data = await res.json();
         
-        showProcessing('Done!');
-        await new Promise(r => setTimeout(r, 300));
-        
+        await new Promise(r => setTimeout(r, 200));
         hideProcessing();
         
         const sourceText = data.source === 'wikipedia' ? 'Wikipedia' : data.source === 'books' ? 'Books' : 'Local';

@@ -847,33 +847,7 @@ class ConversationalAI:
         return None
 
     def _generate_with_facts(self, query: str, facts: str, gen) -> str:
-        """Generate a response using facts from Wikipedia."""
-        rewriter = self._get_rewriter()
-
-        if rewriter:
-            # Generate multiple response candidates
-            candidates = []
-            
-            # Candidate 1: Direct paraphrase
-            response1 = rewriter.rewrite_for_chat(facts, context=query)
-            if response1 and len(response1) > 30:
-                candidates.append(response1)
-            
-            # Candidate 2: Simplified version
-            response2 = rewriter.rewrite(facts, style='simplify')
-            if response2 and len(response2) > 30:
-                candidates.append(response2)
-            
-            # Candidate 3: Original facts
-            if facts and len(facts) > 30:
-                candidates.append(facts)
-            
-            # Score and pick the best
-            if candidates:
-                best = self._score_responses(candidates, query)
-                return best
-
-        # Fallback: return the facts directly
+        """Return facts directly — fast and accurate."""
         return facts
 
     def _score_responses(self, candidates: List[str], query: str) -> str:

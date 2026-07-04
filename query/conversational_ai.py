@@ -38,6 +38,7 @@ class ConversationalAI:
         self._user_context = {}  # Remember user info
         self._wiki_cache = {}  # Cache Wikipedia lookups
         self._neural_mapper = None  # Neural Wikipedia mapper
+        self._topic_extractor = None  # Neural topic extractor
         self._last_query_topic = None  # Track last query for learning
 
     def _get_generator(self):
@@ -155,6 +156,21 @@ class ConversationalAI:
             except Exception as e:
                 logger.debug(f"Neural mapper not available: {e}")
         return self._neural_mapper
+
+    def _get_topic_extractor(self):
+        """Lazy-load the neural topic extractor."""
+        if self._topic_extractor is None:
+            try:
+                from .neural_topic_extractor import NeuralTopicExtractor
+                self._topic_extractor = NeuralTopicExtractor()
+                # Load saved scores if available
+                import os
+                scores_path = os.path.join(os.path.dirname(__file__), '..', 'topic_scores.json')
+                self._topic_extractor.load(scores_path)
+                logger.info("Neural topic extractor loaded")
+            except Exception as e:
+                logger.debug(f"Neural topic extractor not available: {e}")
+        return self._topic_extractor
 
     def chat(self, message: str) -> str:
         """
@@ -334,7 +350,7 @@ class ConversationalAI:
         return f"I don't have specific information about {topic} in my knowledge base."
 
     def _extract_topic(self, message: str) -> str:
-        """Extract the main topic from a message."""
+        """Extract the main topic from a message using neural extraction."""
         m = message.lower().strip().rstrip('?')
 
         # Common term mappings (expand abbreviations)
@@ -356,6 +372,17 @@ class ConversationalAI:
             if topic:
                 return self._expand_topic(topic, expand_map)
 
+        # Try neural topic extractor first
+        extractor = self._get_topic_extractor()
+        if extractor:
+            try:
+                neural_topic = extractor.extract_topic(m)
+                if neural_topic and len(neural_topic) > 2:
+                    return self._expand_topic(neural_topic, expand_map)
+            except Exception as e:
+                logger.debug(f"Neural topic extraction failed: {e}")
+
+        # Fallback: regex patterns (kept as backup)
         # Pattern: "how many X does Y have" -> Y
         match = re.search(r'how many\s+\w+\s+(?:does|do|did)\s+(.+?)\s+(?:have|has|had)', m)
         if match:
@@ -370,9 +397,7 @@ class ConversationalAI:
         match = re.search(r'(?:who|what|where|when|why|how)\s+(?:is|are|was|were|do|does|did)\s+(?:the\s+)?(?:a\s+)?(?:an\s+)?(.+)', m)
         if match:
             topic = match.group(1).strip()
-            # Remove trailing words like "reported", "invented", etc.
             topic = re.sub(r'\s+(reported|invented|discovered|created|founded|built|written|painted|happened|occurred)$', '', topic)
-            # Remove ordinal words like "first", "last", "next", etc.
             topic = re.sub(r'^(first|last|next|biggest|smallest|oldest|newest|most|best|worst|greatest|famous|important)\s+', '', topic)
             return self._expand_topic(topic, expand_map)
 
@@ -386,14 +411,14 @@ class ConversationalAI:
         if match:
             return self._expand_topic(match.group(1).strip(), expand_map)
 
-        # Pattern: "did/do/does X have Y" -> "X Y" (e.g., "did Jesus have a mother" -> "Jesus mother")
+        # Pattern: "did/do/does X have Y" -> "X Y"
         match = re.search(r'(?:did|do|does|have|has|had)\s+(.+?)\s+(?:have|has|had)\s+(?:a\s+|an\s+|the\s+)?(.+)', m)
         if match:
             subject = match.group(1).strip()
             object_ = match.group(2).strip()
             return self._expand_topic(f"{subject} {object_}", expand_map)
 
-        # Pattern: "is/was X a Y?" -> "X Y" (e.g., "is Jesus God" -> "Jesus God")
+        # Pattern: "is/was X a Y?" -> "X Y"
         match = re.search(r'(?:is|are|was|were)\s+(.+?)\s+(?:a\s+|an\s+|the\s+)?(.+?)(?:\s+in\s+|\s+of\s+|\s+for\s+|\s+on\s+|$)', m)
         if match:
             subject = match.group(1).strip()
@@ -401,7 +426,7 @@ class ConversationalAI:
             if len(subject) > 2 and len(object_) > 2:
                 return self._expand_topic(f"{subject} {object_}", expand_map)
 
-        # Pattern: "can/could X Y?" -> "X Y" (e.g., "can Jesus heal" -> "Jesus healing")
+        # Pattern: "can/could X Y?" -> "X Y"
         match = re.search(r'(?:can|could|will|would|should|may|might)\s+(.+?)\s+(.+?)(?:\?|$)', m)
         if match:
             subject = match.group(1).strip()
@@ -1034,11 +1059,21 @@ class ConversationalAI:
         if len(self._entities) > 5:
             self._entities = self._entities[-5:]
         
-        # Save neural mapper periodically
-        if self._neural_mapper and len(self._history) % 5 == 0:
+        # Train topic extractor if we have a topic
+        if topic and self._topic_extractor:
+            self._topic_extractor.train(query, topic, positive=True)
+        
+        # Save neural models periodically
+        if len(self._history) % 5 == 0:
             try:
                 import os
-                mapper_path = os.path.join(os.path.dirname(__file__), '..', 'wiki_mappings.json')
-                self._neural_mapper.save(mapper_path)
+                # Save wiki mapper
+                if self._neural_mapper:
+                    mapper_path = os.path.join(os.path.dirname(__file__), '..', 'wiki_mappings.json')
+                    self._neural_mapper.save(mapper_path)
+                # Save topic extractor
+                if self._topic_extractor:
+                    scores_path = os.path.join(os.path.dirname(__file__), '..', 'topic_scores.json')
+                    self._topic_extractor.save(scores_path)
             except Exception:
                 pass

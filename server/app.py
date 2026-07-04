@@ -29,6 +29,17 @@ def create_app():
         if _chatbot is None:
             from bookbot.query.conversational_ai import ConversationalAI
             _chatbot = ConversationalAI()
+            # Load learned knowledge from database
+            try:
+                if _chatbot.db:
+                    rows = _chatbot.db.execute(
+                        "SELECT topic, fact FROM learned_knowledge WHERE source='wikipedia' ORDER BY confidence DESC LIMIT 100"
+                    )
+                    for row in rows:
+                        _learned_facts[row[0]].append(row[1])
+                    logger.info(f"Loaded {sum(len(v) for v in _learned_facts.values())} learned facts")
+            except Exception as e:
+                logger.debug(f"Failed to load learned facts: {e}")
         return _chatbot
     
     def store_wikipedia_fact(question, answer, source):

@@ -1070,17 +1070,28 @@ class ConversationalAI:
         if topic and self._topic_extractor:
             self._topic_extractor.train(query, topic, positive=True)
         
-        # Save neural models periodically
-        if len(self._history) % 5 == 0:
-            try:
-                import os
-                # Save wiki mapper
-                if self._neural_mapper:
-                    mapper_path = os.path.join(os.path.dirname(__file__), '..', 'wiki_mappings.json')
-                    self._neural_mapper.save(mapper_path)
-                # Save topic extractor
-                if self._topic_extractor:
-                    scores_path = os.path.join(os.path.dirname(__file__), '..', 'topic_scores.json')
-                    self._topic_extractor.save(scores_path)
-            except Exception:
-                pass
+        # Save all neural models
+        try:
+            import os
+            base = os.path.join(os.path.dirname(__file__), '..')
+            if self._neural_mapper:
+                self._neural_mapper.save(os.path.join(base, 'wiki_mappings.json'))
+            if self._topic_extractor:
+                self._topic_extractor.save(os.path.join(base, 'topic_scores.json'))
+            if self._intent_classifier:
+                self._intent_classifier.save(os.path.join(base, 'intent_scores.json'))
+            if self._response_selector:
+                self._response_selector.save(os.path.join(base, 'response_scores.json'))
+        except Exception as e:
+            logger.debug(f"Failed to save models: {e}")
+        
+        # Store in database
+        try:
+            if self.db:
+                self.db.execute(
+                    "INSERT INTO learned_knowledge (topic, fact, source, confidence) VALUES (?, ?, ?, ?)",
+                    (topic, response, 'conversation', 0.7)
+                )
+                self.db.commit()
+        except Exception:
+            pass

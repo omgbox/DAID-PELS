@@ -1,7 +1,7 @@
 {
   "word_scores": {
     "wiki": 0.6,
-    "what": 0.30000000000000004,
+    "what": 0.20000000000000007,
     "books": 0.6,
     "do": 0.45,
     "you": 0.4,
@@ -12,7 +12,7 @@
     "about": 0.35000000000000003,
     "distributed": 0.6,
     "networks": 0.45,
-    "is": 0.30000000000000004,
+    "is": 0.20000000000000007,
     "lua": 0.7,
     "programming": 0.6,
     "language": 0.6,
@@ -32,7 +32,13 @@
     "bajwa": 0.8999999999999999,
     "movies": 0.6,
     "music": 0.6,
-    "harmony": 0.6
+    "harmony": 0.6,
+    "melody": 0.6,
+    "rhythm": 0.6,
+    "microseconds": 0.6,
+    "with": 0.6,
+    "empirical": 0.6,
+    "evidence": 0.6
   },
-  "training_count": 14
+  "training_count": 18
 }

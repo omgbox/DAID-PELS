@@ -34,7 +34,7 @@ def create_app():
 
     @app.route('/chat', methods=['POST'])
     def chat():
-        global _processing
+        nonlocal _processing
         data = request.get_json()
         message = data.get('message', '').strip()
         sid = data.get('session_id', 'default')

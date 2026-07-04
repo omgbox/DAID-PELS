@@ -193,14 +193,19 @@ The system's actual intelligence comes from the **rule-based pipeline**: BM25 + 
 | Multi-source synthesis | ✅ Working |
 | 466K word list | ✅ Integrated |
 | Old English dictionary | ✅ Integrated |
+| Neural Wikipedia mapper | ✅ Working |
+| Follow-up context | ✅ Working |
+| Dynamic Wikipedia search | ✅ Working |
+| Online learning | ✅ Working |
+| HF_TOKEN authenticated | ✅ Working |
 
 ---
 
 ## NEXT STEPS (Immediate)
 
 1. **Improve Wikipedia query extraction** — Get specific answers, not just summaries
-2. **Add more Old English topics** — Expand Wikipedia mappings for OE vocabulary
-3. **Test Old English queries** — "What does wyrd mean?" → "fate, destiny"
+2. **Test Old English queries** — "What does wyrd mean?" → "fate, destiny"
+3. **Add more follow-up patterns** — "and also", "what else", etc.
 
 ---
 
@@ -234,5 +239,7 @@ The system's actual intelligence comes from the **rule-based pipeline**: BM25 + 
 | Memory | Last 10 turns | Long-term preferences |
 | Source attribution | ✅ Always cited | Always cited |
 | Multi-source synthesis | ✅ Yes | Yes |
-| Word validation | 466K words (was 147K) | Full dictionary |
+| Word validation | ✅ 466K words | Full dictionary |
 | Old English | ✅ 42K OE words | N/A |
+| Wikipedia mapping | ✅ Neural mapper (learns) | N/A |
+| Follow-up context | ✅ Topic carryover | N/A |

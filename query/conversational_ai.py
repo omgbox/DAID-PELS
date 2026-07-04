@@ -863,26 +863,52 @@ class ConversationalAI:
         return None
 
     def _generate_with_facts(self, query: str, facts: str, gen) -> str:
-        """Rewrite facts to sound natural using T5 Paraphrase."""
-        # Clean up Wikipedia text first
+        """Full LLM-style response generation using all systems."""
+        # Clean Wikipedia text
         text = facts.strip()
-        text = re.sub(r'\[\d+\]', '', text)  # Remove citations
-        text = re.sub(r'\s+', ' ', text)  # Clean spaces
+        text = re.sub(r'\[\d+\]', '', text)
+        text = re.sub(r'\s+', ' ', text)
         
         if 'may refer to' in text[:200]:
             return None
         
-        # Use T5 Paraphrase to rewrite
+        candidates = []
+        
+        # Candidate 1: T5 Paraphrase (natural rewrite)
         rewriter = self._get_rewriter()
         if rewriter:
             try:
-                rewritten = rewriter.rewrite_for_chat(text, context=query)
-                if rewritten and len(rewritten) > 30:
-                    return rewritten
-            except Exception as e:
-                logger.debug(f"T5 rewrite failed: {e}")
+                r1 = rewriter.rewrite_for_chat(text, context=query)
+                if r1 and len(r1) > 30:
+                    candidates.append(r1)
+            except Exception:
+                pass
+            
+            try:
+                r2 = rewriter.rewrite(text, style='simplify')
+                if r2 and len(r2) > 30:
+                    candidates.append(r2)
+            except Exception:
+                pass
         
-        # Fallback: return cleaned text
+        # Candidate 2: DistilGPT2 generation
+        if gen:
+            try:
+                prompt = f"Based on: {text[:200]}\nAnswer: {query}\nResponse:"
+                r3 = gen.generate_from_prompt(prompt, max_tokens=100, temperature=0.7)
+                if r3 and len(r3) > 30:
+                    candidates.append(r3)
+            except Exception:
+                pass
+        
+        # Candidate 3: Original cleaned text
+        if text and len(text) > 30:
+            candidates.append(text)
+        
+        # Score and pick best
+        if candidates:
+            return self._score_responses(candidates, query)
+        
         return text
 
     def _score_responses(self, candidates: List[str], query: str) -> str:

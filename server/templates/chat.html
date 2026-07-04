@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DAID-PELS Chat</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="header">
+        <h1>DAID-PELS</h1>
+        <span class="status">Online</span>
+    </div>
+
+    <div class="chat-container" id="chat">
+        <div class="welcome">
+            <h2>DAID-PELS Chat</h2>
+            <p>Ask me anything about books, the world, or just chat!</p>
+            <div class="suggestions">
+                <div class="suggestion" onclick="sendSuggestion('what is Python?')">What is Python?</div>
+                <div class="suggestion" onclick="sendSuggestion('who created Rust?')">Who created Rust?</div>
+                <div class="suggestion" onclick="sendSuggestion('what are UFOs?')">What are UFOs?</div>
+                <div class="suggestion" onclick="sendSuggestion('tell me about quantum computing')">Quantum computing</div>
+                <div class="suggestion" onclick="sendSuggestion('hello')">Say hello</div>
+            </div>
+        </div>
+        <div class="typing" id="typing">
+            <span></span><span></span><span></span>
+        </div>
+    </div>
+
+    <div class="input-container">
+        <input type="text" id="messageInput" placeholder="Type your message..." autocomplete="off">
+        <button id="sendBtn" onclick="sendMessage()">Send</button>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

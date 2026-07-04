@@ -453,9 +453,11 @@ class DistilGPT2Generator:
             import torch
             from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
+            import os
+            token = os.environ.get('HF_TOKEN')
             logger.info("Loading DistilGPT2...")
-            self.tokenizer = GPT2Tokenizer.from_pretrained('distilgpt2')
-            self.model = GPT2LMHeadModel.from_pretrained('distilgpt2')
+            self.tokenizer = GPT2Tokenizer.from_pretrained('distilgpt2', token=token)
+            self.model = GPT2LMHeadModel.from_pretrained('distilgpt2', token=token)
             self.model.eval()
 
             # Move to CPU explicitly
@@ -549,9 +551,11 @@ class T5Rewriter:
         try:
             from transformers import T5ForConditionalGeneration, T5Tokenizer
 
+            import os
+            token = os.environ.get('HF_TOKEN')
             logger.info("Loading T5 Paraphrase (Vamsi/T5_Paraphrase_Paws)...")
-            self.tokenizer = T5Tokenizer.from_pretrained('Vamsi/T5_Paraphrase_Paws')
-            self.model = T5ForConditionalGeneration.from_pretrained('Vamsi/T5_Paraphrase_Paws')
+            self.tokenizer = T5Tokenizer.from_pretrained('Vamsi/T5_Paraphrase_Paws', token=token)
+            self.model = T5ForConditionalGeneration.from_pretrained('Vamsi/T5_Paraphrase_Paws', token=token)
             self.model.eval()
             self.model = self.model.to('cpu')
 

@@ -21,10 +21,12 @@ def _load_model(model_path: str = 'C:/projects/bookbot/t5_small'):
         return
 
     try:
+        import os
         from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+        token = os.environ.get('HF_TOKEN')
         logger.info(f"Loading T5 model from {model_path}...")
-        _tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
-        _model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
+        _tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False, token=token)
+        _model = AutoModelForSeq2SeqLM.from_pretrained(model_path, token=token)
         logger.info("T5 model loaded successfully")
     except Exception as e:
         logger.error(f"Failed to load T5 model: {e}")

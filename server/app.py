@@ -1,5 +1,5 @@
 """Flask app for DAID-PELS web interface."""
-import sys, os, time, json, threading
+import sys, os, time, json, threading, logging
 from pathlib import Path
 from collections import defaultdict
 
@@ -7,6 +7,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from flask import Flask, render_template, request, jsonify
 import psutil
+
+logger = logging.getLogger(__name__)
 
 
 def create_app():
@@ -20,6 +22,7 @@ def create_app():
     _processing = False
     _cache = {}  # question -> response cache
     _last_query_time = {}  # session_id -> last query time
+    _learned_facts = defaultdict(list)  # session_id -> learned facts
 
     def get_chatbot():
         nonlocal _chatbot
@@ -27,6 +30,25 @@ def create_app():
             from bookbot.query.conversational_ai import ConversationalAI
             _chatbot = ConversationalAI()
         return _chatbot
+    
+    def store_wikipedia_fact(question, answer, source):
+        """Store Wikipedia answer for future reference."""
+        if source != 'wikipedia':
+            return
+        try:
+            bot = get_chatbot()
+            # Extract topic from question
+            topic = bot._extract_topic(question)
+            # Store in learned knowledge
+            if hasattr(bot, 'db') and bot.db:
+                bot.db.execute(
+                    "INSERT OR IGNORE INTO learned_knowledge (topic, fact, source, confidence) VALUES (?, ?, ?, ?)",
+                    (topic, answer, 'wikipedia', 0.8)
+                )
+                bot.db.commit()
+            logger.debug(f"Stored Wikipedia fact: {topic}")
+        except Exception as e:
+            logger.debug(f"Failed to store fact: {e}")
 
     @app.route('/')
     def index():
@@ -76,6 +98,9 @@ def create_app():
                 oldest = list(_cache.keys())[0]
                 del _cache[oldest]
             _cache[cache_key] = {'response': response, 'source': source}
+            
+            # Store Wikipedia facts for future reference
+            store_wikipedia_fact(message, response, source)
             
             _history[sid].append({'user': message, 'bot': response, 'source': source, 'time': round(rt, 3)})
             if len(_history[sid]) > 50:

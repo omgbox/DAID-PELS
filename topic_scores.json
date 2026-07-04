@@ -1,15 +1,15 @@
 {
   "word_scores": {
     "wiki": 0.6,
-    "what": 0.20000000000000007,
+    "what": 0.15000000000000008,
     "books": 0.6,
     "do": 0.45,
-    "you": 0.4,
+    "you": 0.35000000000000003,
     "have": 0.45,
     "tell": 0.30000000000000004,
     "me": 0.30000000000000004,
     "something": 0.4,
-    "about": 0.35000000000000003,
+    "about": 0.30000000000000004,
     "distributed": 0.6,
     "networks": 0.45,
     "is": 0.20000000000000007,
@@ -38,7 +38,9 @@
     "microseconds": 0.6,
     "with": 0.6,
     "empirical": 0.6,
-    "evidence": 0.6
+    "evidence": 0.6,
+    "are": 0.45,
+    "talking": 0.6
   },
-  "training_count": 18
+  "training_count": 19
 }

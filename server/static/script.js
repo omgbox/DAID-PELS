@@ -5,6 +5,10 @@ const typing = document.getElementById('typing');
 const statsPanel = document.getElementById('statsPanel');
 const statsContent = document.getElementById('statsContent');
 
+// State
+let lastStats = null;
+let statsInterval = null;
+
 // Send on Enter key
 messageInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendMessage();
@@ -20,6 +24,14 @@ function toggleStats() {
     statsPanel.classList.toggle('show');
     if (statsPanel.classList.contains('show')) {
         loadStats();
+        // Start auto-refresh
+        statsInterval = setInterval(loadStats, 1000);
+    } else {
+        // Stop auto-refresh
+        if (statsInterval) {
+            clearInterval(statsInterval);
+            statsInterval = null;
+        }
     }
 }
 
@@ -27,7 +39,12 @@ async function loadStats() {
     try {
         const response = await fetch('/stats');
         const data = await response.json();
-        renderStats(data);
+        
+        // Only re-render if data changed
+        if (!lastStats || JSON.stringify(data) !== JSON.stringify(lastStats)) {
+            renderStats(data);
+            lastStats = data;
+        }
     } catch (error) {
         statsContent.innerHTML = '<div class="loading">Failed to load stats</div>';
     }
@@ -35,6 +52,9 @@ async function loadStats() {
 
 function renderStats(data) {
     const uptime = formatUptime(data.uptime);
+    const avgTime = data.stats.avg_response_time;
+    const maxTime = 5; // Max expected response time for progress bar
+    const progress = Math.min((avgTime / maxTime) * 100, 100);
     
     let html = `
         <div class="stat-section">
@@ -50,11 +70,14 @@ function renderStats(data) {
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">Total Queries</div>
-                    <div class="stat-value">${data.stats.total_queries}</div>
+                    <div class="stat-value" id="stat-queries">${data.stats.total_queries}</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">Avg Response</div>
-                    <div class="stat-value">${data.stats.avg_response_time.toFixed(2)}s</div>
+                    <div class="stat-value" id="stat-avg-time">${avgTime.toFixed(2)}s</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${progress}%"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -64,6 +87,7 @@ function renderStats(data) {
     `;
     
     for (const [key, nn] of Object.entries(data.neural_networks)) {
+        const nnProgress = nn.training_count ? Math.min((nn.training_count / 100) * 100, 100) : 0;
         html += `
             <div class="neural-network">
                 <div class="nn-header">
@@ -76,6 +100,11 @@ function renderStats(data) {
                     ${nn.training_count !== undefined ? `<span>Trained: ${nn.training_count}x</span>` : ''}
                     ${nn.mappings_count !== undefined ? `<span>Mappings: ${nn.mappings_count}</span>` : ''}
                 </div>
+                ${nn.training_count !== undefined ? `
+                <div class="progress-bar">
+                    <div class="progress-fill neural" style="width: ${nnProgress}%"></div>
+                </div>
+                ` : ''}
             </div>
         `;
     }
@@ -112,7 +141,7 @@ async function sendMessage() {
     messageInput.value = '';
     sendBtn.disabled = true;
 
-    // Show typing indicator
+    // Show typing indicator with progress
     typing.classList.add('show');
     chat.scrollTop = chat.scrollHeight;
 
@@ -131,7 +160,7 @@ async function sendMessage() {
         // Add bot response with response time
         addMessage(data.response, 'bot', data.response_time);
         
-        // Update stats
+        // Update stats immediately
         if (statsPanel.classList.contains('show')) {
             loadStats();
         }

@@ -19,6 +19,7 @@ DAID-PELS is a chatbot that:
 8. **Resolves pronouns** — understands "it", "he", "she" from context
 9. **Scores response quality** — picks the best response from multiple candidates
 10. **Learns on the fly** — 4 neural networks that improve with every query
+11. **Web interface** — chat via browser with stats panel
 
 ```
 > hi
@@ -124,6 +125,12 @@ that cannot be identified as known natural or man-made phenomena.
 - **Multi-source attribution** — "— Sources: Wikipedia, Book database"
 - **Confidence indicators** — "(verified)", "(partial)" for cross-referenced facts
 
+### Web Interface
+- **Chat in browser** — modern dark-themed UI
+- **Stats panel** — view neural networks, memory, response times
+- **Response time** — shown on each message
+- **Mobile responsive** — works on phone/tablet
+
 ---
 
 ## Quick Start (5 minutes)
@@ -153,6 +160,11 @@ python train_pride.py
 
 # 8. Chat!
 python -m bookbot.main query
+
+# 9. Or use web interface!
+cd C:\projects
+python run_server.py
+# Open http://localhost:5000
 ```
 
 ---

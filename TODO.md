@@ -5,16 +5,54 @@
 
 The system now has **fully integrated neural components** that learn on the fly:
 
-| Component | Architecture | Purpose |
-|-----------|--------------|---------|
-| Topic Extractor | 3-layer (20→128→64→1) | Extracts key topics from queries |
-| Wikipedia Mapper | 3-layer (20→256→128→1) | Maps queries to Wikipedia pages |
-| Intent Classifier | 3-layer (20→128→64→1) | Classifies user intent |
-| Response Selector | 3-layer (16→64→32→1) | Picks best response |
-| DistilGPT2 | 82M params | Text generation |
-| T5 Paraphrase | 60M params | Response rewriting |
+| Component | Architecture | Weights | Purpose |
+|-----------|--------------|---------|---------|
+| Topic Extractor | 3-layer (24→256→128→1) | 49,152 | Extracts key topics from queries |
+| Wikipedia Mapper | 3-layer (20→512→256→1) | 196,608 | Maps queries to Wikipedia pages |
+| Intent Classifier | 3-layer (20→256→128→1) | 49,152 | Classifies user intent |
+| Response Selector | 3-layer (16→128→64→1) | 12,288 | Picks best response |
+| DistilGPT2 | 82M params | 82,000,000 | Text generation |
+| T5 Paraphrase | 60M params | 60,000,000 | Response rewriting |
 
-**Total neural parameters: ~150M** (all running on CPU)
+**Total neural parameters: ~142M** (all running on CPU)
+
+---
+
+## WEB INTERFACE
+
+### Server Module (`server/`)
+```
+server/
+  __init__.py      # Module exports
+  __main__.py      # Entry point (python -m server)
+  app.py           # Flask application factory
+  templates/
+    chat.html      # Chat interface
+  static/
+    style.css      # Dark theme styling
+    script.js      # Chat functionality
+```
+
+### Run Web Interface
+```bash
+cd C:\projects
+python run_server.py
+# Open http://localhost:5000
+```
+
+### Features
+- **Chat interface** — modern dark-themed UI
+- **Stats panel** — click Stats button to view:
+  - System stats (uptime, memory, queries, avg response time)
+  - Neural network info (architecture, weights, training count)
+- **Response time** — shown on each message
+- **Mobile responsive** — works on phone/tablet
+
+### API Endpoints
+- `GET /` — Chat interface
+- `POST /chat` — Send message, get response
+- `GET /stats` — System statistics
+- `GET /health` — Health check
 
 ---
 
@@ -23,10 +61,10 @@ The system now has **fully integrated neural components** that learn on the fly:
 ### 1. Neural Topic Extractor (`neural_topic_extractor.py`)
 **Architecture**: 3-layer feedforward network
 - Input: 24 features per word (position, length, case, stop word, verb detection, etc.)
-- Hidden1: 128 neurons (ReLU)
-- Hidden2: 64 neurons (ReLU)
+- Hidden1: 256 neurons (ReLU)
+- Hidden2: 128 neurons (ReLU)
 - Output: 1 (sigmoid score)
-- **Total weights: 28,736**
+- **Total weights: 49,152**
 
 **Features extracted:**
 1. Position normalized

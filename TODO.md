@@ -119,7 +119,7 @@ The system's actual intelligence comes from the **rule-based pipeline**: BM25 + 
 
 ---
 
-### 7. Response Quality Scoring
+### 7. Response Quality Scoring (Current Priority)
 **Goal**: Rank responses by quality and pick the best
 
 **Current**: Returns first result
@@ -127,14 +127,14 @@ The system's actual intelligence comes from the **rule-based pipeline**: BM25 + 
 
 **How to implement:**
 - Score responses on fluency, relevance, completeness
-- Use DistilGPT2 to generate multiple options
+- Generate multiple response candidates
 - Pick highest-scoring response
 
-**Priority**: LOW
+**Priority**: HIGH (Current)
 
 ---
 
-### 8. Fact Verification
+### 8. Fact Verification (Current Priority)
 **Goal**: Cross-reference information for accuracy
 
 **Current**: Single source only
@@ -144,8 +144,9 @@ The system's actual intelligence comes from the **rule-based pipeline**: BM25 + 
 - Query multiple sources
 - Compare facts
 - Flag inconsistencies
+- Add confidence indicator
 
-**Priority**: LOW
+**Priority**: HIGH (Current)
 
 ---
 

@@ -103,7 +103,7 @@ The system's actual intelligence comes from the **rule-based pipeline**: BM25 + 
 
 ---
 
-### 6. Multi-Source Knowledge Base
+### 6. Multi-Source Knowledge Base (Current Priority)
 **Goal**: Combine book knowledge with Wikipedia
 
 **Current**: Book OR Wikipedia
@@ -113,8 +113,9 @@ The system's actual intelligence comes from the **rule-based pipeline**: BM25 + 
 - Search book database first
 - Supplement with Wikipedia if needed
 - Merge information coherently
+- Show both sources in attribution
 
-**Priority**: MEDIUM
+**Priority**: HIGH (Current)
 
 ---
 

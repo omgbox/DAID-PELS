@@ -159,20 +159,35 @@ class ConversationalAI:
         # Step 2: Understand what the user wants
         intent = self._understand(message)
 
-        # Step 3: Get information based on intent type
+        # Step 3: Get information from multiple sources
         facts = None
-        source = None
+        sources = []
+        
         if intent['type'] == 'book':
             # Search book database
-            facts = self._search_book(intent['topic'])
-            source = 'book'
+            book_facts = self._search_book(intent['topic'])
+            if book_facts:
+                facts = book_facts
+                sources.append('book')
         elif intent['needs_info']:
             # Search Wikipedia
-            facts = self._get_facts(intent['topic'])
-            source = 'wikipedia'
+            wiki_facts = self._get_facts(intent['topic'])
+            if wiki_facts:
+                facts = wiki_facts
+                sources.append('wikipedia')
+            
+            # Also search book database for additional context
+            book_facts = self._search_book(intent['topic'])
+            if book_facts:
+                if facts:
+                    # Combine facts from both sources
+                    facts = f"{facts}\n\nAdditionally, from the book collection: {book_facts}"
+                else:
+                    facts = book_facts
+                    sources.append('book')
 
         # Step 4: Generate a natural response
-        response = self._respond(message, intent, facts, source)
+        response = self._respond(message, intent, facts, sources)
 
         # Step 5: Remember this conversation
         self._remember(message, response)
@@ -436,7 +451,7 @@ class ConversationalAI:
 
         return None
 
-    def _respond(self, message: str, intent: Dict, facts: Optional[str], source: Optional[str] = None) -> str:
+    def _respond(self, message: str, intent: Dict, facts: Optional[str], sources: List[str] = None) -> str:
         """Generate a natural response."""
         gen = self._get_generator()
 
@@ -453,8 +468,8 @@ class ConversationalAI:
                 response = facts
             
             # Add source attribution
-            if source and response:
-                attribution = self._get_attribution(source, intent.get('topic', ''))
+            if sources and response:
+                attribution = self._get_attribution(sources)
                 if attribution:
                     response = f"{response}\n\n{attribution}"
             
@@ -580,13 +595,29 @@ class ConversationalAI:
 
         return cleaned if len(cleaned) > 20 else None
 
-    def _get_attribution(self, source: str, topic: str) -> str:
+    def _get_attribution(self, sources: List[str]) -> str:
         """Get source attribution based on where the information came from."""
-        if source == 'wikipedia':
-            return "— Source: Wikipedia"
-        elif source == 'book':
-            return "— Source: Book database"
-        return ""
+        if not sources:
+            return ""
+        
+        # Map source types to human-readable names
+        source_names = {
+            'wikipedia': 'Wikipedia',
+            'book': 'Book database',
+        }
+        
+        # Get unique source names
+        names = []
+        for source in sources:
+            if source in source_names and source_names[source] not in names:
+                names.append(source_names[source])
+        
+        if not names:
+            return ""
+        elif len(names) == 1:
+            return f"— Source: {names[0]}"
+        else:
+            return f"— Sources: {', '.join(names)}"
 
     def _resolve_pronouns(self, message: str) -> str:
         """

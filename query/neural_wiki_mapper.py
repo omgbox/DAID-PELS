@@ -382,7 +382,9 @@ class NeuralWikipediaMapper:
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            self.learned_mappings = data.get('learned_mappings', {})
-            logger.info(f"Loaded {len(self.learned_mappings)} mappings from {path}")
+            # Merge with existing mappings
+            loaded = data.get('learned_mappings', {})
+            self.learned_mappings.update(loaded)
+            logger.info(f"Loaded {len(loaded)} mappings from {path}, total: {len(self.learned_mappings)}")
         except FileNotFoundError:
             logger.info(f"No saved mappings found at {path}")

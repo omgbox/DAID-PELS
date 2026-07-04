@@ -146,8 +146,27 @@ def train():
     
     print(f"\nCrawled {len(pages)} pages. Training neural networks...\n")
     
-    # Train on crawled pages
+    # Train on crawled pages (load existing models first)
     ai = ConversationalAI()
+    
+    # Force-create all neural networks
+    base = os.path.dirname(os.path.abspath(__file__))
+    ai._get_topic_extractor()
+    ai._get_neural_mapper()
+    ai._get_intent_classifier()
+    ai._get_response_selector()
+    
+    # Load existing models
+    if ai._topic_extractor:
+        ai._topic_extractor.load(os.path.join(base, 'topic_scores.json'))
+        print(f"  Loaded topic_extractor: {len(ai._topic_extractor.word_scores)} words")
+    if ai._neural_mapper:
+        ai._neural_mapper.load(os.path.join(base, 'wiki_mappings.json'))
+        print(f"  Loaded neural_mapper: {len(ai._neural_mapper.learned_mappings)} mappings")
+    if ai._intent_classifier:
+        ai._intent_classifier.load(os.path.join(base, 'intent_scores.json'))
+        print(f"  Loaded intent_classifier: {len(ai._intent_classifier.intent_scores)} patterns")
+    
     total_trained = 0
     
     # Query templates
@@ -176,6 +195,9 @@ def train():
             # Train Wikipedia mapper
             if ai._neural_mapper:
                 ai._neural_mapper.train(query, title, positive=True)
+                # Debug: print first few
+                if len(ai._neural_mapper.learned_mappings) <= 10:
+                    print(f"    Added mapping: {query[:30]} -> {title[:30]}")
             
             # Train intent classifier
             if ai._intent_classifier:
@@ -186,6 +208,12 @@ def train():
         # Progress
         if (i + 1) % 50 == 0:
             print(f"  Trained: {i+1}/{len(pages)} pages ({total_trained} queries)")
+    
+    # Debug: check what was trained
+    print(f"\n  ai._neural_mapper is None: {ai._neural_mapper is None}")
+    if ai._neural_mapper:
+        print(f"  Neural mapper learned_mappings: {len(ai._neural_mapper.learned_mappings)} mappings")
+        print(f"  Sample mappings: {list(ai._neural_mapper.learned_mappings.items())[:5]}")
     
     # Save
     print(f"\n{'='*60}")

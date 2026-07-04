@@ -588,7 +588,7 @@ class ConversationalAI:
         return None
 
     def _get_facts(self, topic: str) -> Optional[str]:
-        """Get facts about a topic from Wikipedia using dynamic search."""
+        """Get facts about a topic from Wikipedia using neural mapper + dynamic search."""
         # Check cache first
         cache_key = topic.lower().strip()
         if cache_key in self._wiki_cache:
@@ -606,13 +606,26 @@ class ConversationalAI:
             self._wiki_cache[cache_key] = result
             return result
 
-        # Strategy 2: Dynamic Wikipedia search
+        # Strategy 2: Use neural mapper to predict correct page
+        mapper = self._get_neural_mapper()
+        if mapper and mapper.learned_mappings:
+            # Get candidates from learned mappings
+            candidates = list(set(mapper.learned_mappings.values()))
+            best = mapper.predict(topic, candidates)
+            if best:
+                result = self._try_direct_page(wiki, best)
+                if result:
+                    self._wiki_cache[cache_key] = result
+                    mapper.train(topic, best, positive=True)
+                    return result
+
+        # Strategy 3: Dynamic Wikipedia search
         result = self._search_wikipedia_dynamic(wiki, topic)
         if result:
             self._wiki_cache[cache_key] = result
             return result
 
-        # Strategy 3: Try common variations
+        # Strategy 4: Try common variations
         variations = self._generate_variations(topic)
         for variation in variations:
             result = self._try_direct_page(wiki, variation)

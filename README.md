@@ -2,6 +2,10 @@
 
 ### Dictionary-Anchored Iterative Deepening with Phonetic-Enhanced Lexical Search
 
+> **⚠️ EXPERIMENTAL — RESEARCH PROJECT ONLY**
+> This is a research prototype, not production software.
+> Built for learning and experimentation, not for real-world use.
+
 A **conversational AI chatbot** that combines rule-based NLP with neural components to answer questions about books and the world. Runs entirely on CPU with no API calls.
 
 ---
@@ -163,6 +167,18 @@ python run_server.py
 | Response preferences | `response_scores.json` | ✅ Yes |
 | Wikipedia facts | `learned_knowledge` table | ✅ Yes |
 | Conversation history | `learned_knowledge` table | ✅ Yes |
+
+---
+
+## Disclaimer
+
+**This project is experimental and for research purposes only.**
+
+- Not intended for production use
+- Not tested for security or reliability
+- May contain bugs or unexpected behavior
+- Use at your own risk
+- For learning and experimentation only
 
 ---
 

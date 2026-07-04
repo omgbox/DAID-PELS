@@ -17,6 +17,9 @@ const sendBtn = $('sendBtn');
 const topbarTitle = $('topbarTitle');
 
 // Init
+console.log('Script loaded');
+console.log('Elements:', { input, messages, welcome, typing, sendBtn });
+
 input.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
 });
@@ -29,41 +32,50 @@ input.focus();
 loadSessions();
 loadHistory();
 
+console.log('Initialization complete');
+
 // Send message
 async function send() {
+    console.log('send() called');
     const text = input.value.trim();
-    if (!text) return;
+    console.log('Input text:', text);
+    if (!text) {
+        console.log('No text, returning');
+        return;
+    }
 
+    console.log('Hiding welcome, adding user msg');
     welcome.classList.add('hidden');
     addMsg(text, 'user');
     input.value = '';
     input.style.height = 'auto';
     sendBtn.disabled = true;
     typing.classList.add('show');
-    snackbarShow('🧠 Processing...');
+    snackbarShow('Processing...');
     messages.scrollTop = messages.scrollHeight;
 
     try {
+        console.log('Fetching /chat...');
         const res = await fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: text, session_id: sessionId })
         });
+        console.log('Response status:', res.status);
         const data = await res.json();
+        console.log('Response data:', data);
         typing.classList.remove('show');
         
-        const sourceText = data.source === 'wikipedia' ? '🌐 Wikipedia' : data.source === 'books' ? '📚 Books' : '💬 Local';
+        const sourceText = data.source === 'wikipedia' ? 'Wikipedia' : data.source === 'books' ? 'Books' : 'Local';
         snackbarShow(sourceText);
         
+        console.log('Adding bot message');
         addMsg(data.response, 'bot', data.response_time, data.source);
         
-        // Update session name from first message
-        if (sessions.length === 0 || sessions[0].id !== sessionId) {
-            newSession(text.substring(0, 30));
-        }
     } catch (e) {
+        console.error('Error:', e);
         typing.classList.remove('show');
-        addMsg('Error occurred.', 'bot');
+        addMsg('Error: ' + e.message, 'bot');
     }
 
     sendBtn.disabled = false;
@@ -72,6 +84,7 @@ async function send() {
 
 // Add message to chat
 function addMsg(text, type, time, source) {
+    console.log('addMsg called:', type, text.substring(0, 50));
     const div = document.createElement('div');
     div.className = 'msg msg-' + type;
     
@@ -83,14 +96,16 @@ function addMsg(text, type, time, source) {
         }
         if (time) html += '<div class="msg-time">' + time.toFixed(1) + 's</div>';
         if (source) {
-            const badge = source === 'wikipedia' ? '🌐 Wikipedia' : source === 'books' ? '📚 Books' : '💬 Local';
+            const badge = source === 'wikipedia' ? 'Wikipedia' : source === 'books' ? 'Books' : 'Local';
             html += '<div class="msg-badge">' + badge + '</div>';
         }
     }
     
     div.innerHTML = html;
+    console.log('Inserting before typing element');
     messages.insertBefore(div, typing);
     messages.scrollTop = messages.scrollHeight;
+    console.log('Message added to DOM');
 }
 
 // Snackbar

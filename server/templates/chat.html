@@ -10,6 +10,18 @@
     <div class="header">
         <h1>DAID-PELS</h1>
         <span class="status">Online</span>
+        <button class="stats-toggle" onclick="toggleStats()">Stats</button>
+    </div>
+
+    <!-- Stats Panel -->
+    <div class="stats-panel" id="statsPanel">
+        <div class="stats-header">
+            <h3>System Statistics</h3>
+            <button onclick="toggleStats()">×</button>
+        </div>
+        <div class="stats-content" id="statsContent">
+            <div class="loading">Loading stats...</div>
+        </div>
     </div>
 
     <div class="chat-container" id="chat">

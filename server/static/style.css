@@ -32,6 +32,140 @@ body {
     color: #4ecca3;
 }
 
+.stats-toggle {
+    margin-left: auto;
+    padding: 6px 12px;
+    background: #0f3460;
+    border: 1px solid #4ecca3;
+    color: #4ecca3;
+    border-radius: 15px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s;
+}
+
+.stats-toggle:hover {
+    background: #4ecca3;
+    color: #1a1a2e;
+}
+
+.stats-panel {
+    display: none;
+    background: #16213e;
+    border-bottom: 1px solid #0f3460;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.stats-panel.show {
+    display: block;
+}
+
+.stats-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    border-bottom: 1px solid #0f3460;
+}
+
+.stats-header h3 {
+    color: #e94560;
+    font-size: 1em;
+}
+
+.stats-header button {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 1.2em;
+    cursor: pointer;
+}
+
+.stats-content {
+    padding: 15px;
+}
+
+.stat-section {
+    margin-bottom: 15px;
+}
+
+.stat-section h4 {
+    color: #4ecca3;
+    font-size: 0.9em;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.stat-item {
+    background: #1a1a2e;
+    padding: 10px;
+    border-radius: 8px;
+}
+
+.stat-label {
+    font-size: 0.75em;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.stat-value {
+    font-size: 1.1em;
+    color: #eee;
+    font-weight: bold;
+}
+
+.neural-network {
+    background: #1a1a2e;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.nn-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.nn-name {
+    color: #4ecca3;
+    font-weight: bold;
+}
+
+.nn-status {
+    font-size: 0.75em;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #0f3460;
+}
+
+.nn-status.loaded {
+    color: #4ecca3;
+}
+
+.nn-details {
+    font-size: 0.8em;
+    color: #888;
+}
+
+.nn-details span {
+    margin-right: 15px;
+}
+
+.loading {
+    color: #666;
+    text-align: center;
+    padding: 20px;
+}
+
 .chat-container {
     flex: 1;
     overflow-y: auto;
@@ -72,6 +206,13 @@ body {
     color: #4ecca3;
     margin-top: 8px;
     font-style: italic;
+}
+
+.message.bot .response-time {
+    font-size: 0.7em;
+    color: #666;
+    margin-top: 5px;
+    text-align: right;
 }
 
 .input-container {

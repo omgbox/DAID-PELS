@@ -458,3 +458,19 @@ CREATE TABLE IF NOT EXISTS training_metadata (
     value           TEXT,
     updated_at      TEXT
 );
+
+-- ============================================================
+-- LEARNED KNOWLEDGE (from conversations & Wikipedia)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS learned_knowledge (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    topic           TEXT,
+    fact            TEXT,
+    source          TEXT,
+    confidence      REAL DEFAULT 0.5,
+    created_at      TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_learned_topic ON learned_knowledge(topic);
+CREATE INDEX IF NOT EXISTS idx_learned_source ON learned_knowledge(source);

@@ -493,7 +493,12 @@
     "bill": 1.0,
     "joy": 1.0,
     "safety": 1.0,
-    "chatgpt": 1.0
+    "chatgpt": 1.0,
+    "gardening": 0.6,
+    "nothing": 0.7,
+    "much": 0.6,
+    "supervisors": 0.6,
+    "grace": 0.6
   },
-  "training_count": 4330
+  "training_count": 4335
 }

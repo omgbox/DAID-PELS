@@ -262,6 +262,9 @@ class Word2VecTrainer:
         Returns:
             (model, vocabulary)
         """
+        import time
+        import sys
+
         # Build vocabulary
         all_tokens = [w for sent in tokenized_sentences for w in sent]
         vocab = Vocabulary(min_count=self.min_count)
@@ -292,18 +295,22 @@ class Word2VecTrainer:
                 encoded_sents.append(encoded)
 
         total_pairs = sum(len(s) * self.window * 2 for s in encoded_sents)
-        logger.info(f"Training Word2Vec: {len(vocab)} words, "
-                     f"{len(encoded_sents)} sentences, "
-                     f"~{total_pairs:,} pairs/epoch, "
-                     f"{self.epochs} epochs")
+        bar_len = 30
+        print(f"\n  Vocabulary: {len(vocab):,} words")
+        print(f"  Sentences: {len(encoded_sents):,}")
+        print(f"  Pairs/epoch: ~{total_pairs:,}")
+        print(f"  Epochs: {self.epochs}")
+        print()
 
         # Training loop
         for epoch in range(self.epochs):
+            epoch_start = time.time()
             random.shuffle(encoded_sents)
             total_loss = 0.0
             pair_count = 0
+            n_sents = len(encoded_sents)
 
-            for sent in encoded_sents:
+            for si, sent in enumerate(encoded_sents):
                 # Train on-the-fly instead of pre-generating all pairs
                 for i, center in enumerate(sent):
                     if center == 0:
@@ -326,11 +333,36 @@ class Word2VecTrainer:
                         total_loss += loss
                         pair_count += 1
 
+                # Progress bar every 500 sentences
+                if (si + 1) % 500 == 0 or si == n_sents - 1:
+                    pct = (si + 1) / n_sents * 100
+                    bar_len = 30
+                    filled = int(bar_len * (si + 1) / n_sents)
+                    bar = '#' * filled + '-' * (bar_len - filled)
+                    elapsed = time.time() - epoch_start
+                    eta = elapsed / (si + 1) * (n_sents - si - 1) if si > 0 else 0
+                    avg_loss = total_loss / max(pair_count, 1)
+                    sys.stdout.write(
+                        f"\r  Epoch {epoch + 1:>2}/{self.epochs} |{bar}| "
+                        f"{pct:>5.1f}% ({si + 1}/{n_sents}) | "
+                        f"loss: {avg_loss:.4f} | "
+                        f"{elapsed:.0f}s | ETA: {eta:.0f}s"
+                    )
+                    sys.stdout.flush()
+
             # Decay learning rate
             self.lr *= 0.95
             avg_loss = total_loss / max(pair_count, 1)
-            logger.info(f"  Epoch {epoch + 1}/{self.epochs}: "
-                         f"loss={avg_loss:.4f}, pairs={pair_count:,}")
+            elapsed = time.time() - epoch_start
+            perplexity = math.exp(avg_loss) if avg_loss < 10 else float('inf')
+
+            sys.stdout.write(
+                f"\r  Epoch {epoch + 1:>2}/{self.epochs} |{'#' * bar_len}| "
+                f"100.0% ({n_sents}/{n_sents}) | "
+                f"loss: {avg_loss:.4f} | ppl: {perplexity:.1f} | "
+                f"{elapsed:.0f}s           \n"
+            )
+            sys.stdout.flush()
 
         # Save if requested
         if save_path:
@@ -343,7 +375,8 @@ class Word2VecTrainer:
                     'word_freq': dict(vocab.word_freq.most_common(5000)),
                     'total_words': vocab.total_words,
                 }, f)
-            logger.info(f"Saved vocabulary to {vocab_path}")
+            print(f"  Saved: {save_path}")
+            print(f"  Saved: {vocab_path}")
 
         return model, vocab
 

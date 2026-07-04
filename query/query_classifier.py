@@ -1,6 +1,6 @@
 """
 BookBot Query Classifier
-Rule-based + keyword intent classification.
+DYNAMIC intent classification — no hard-coded topics.
 """
 
 import re
@@ -14,6 +14,14 @@ logger = logging.getLogger('bookbot.query.query_classifier')
 
 class QueryClassifier(BaseModule):
     """Query intent classification module."""
+
+    # Book-specific entities
+    BOOK_ENTITIES = {
+        'elizabeth', 'darcy', 'jane', 'bingley', 'wickham', 'lydia',
+        'mary', 'kitty', 'bennet', 'collins', 'longbourn', 'netherfield',
+        'pemberley', 'meryton', 'hertfordshire', 'derbyshire',
+        'pride', 'prejudice', 'austen',
+    }
 
     def __init__(self, config: dict = None, db_manager=None, logger=None):
         super().__init__(config, db_manager, logger)
@@ -41,50 +49,82 @@ class QueryClassifier(BaseModule):
 
     def _classify_intent(self, query: str) -> str:
         """
-        Classify query intent.
-
-        Args:
-            query: Query text
-
-        Returns:
-            Intent string
+        DYNAMIC intent classification.
+        If it looks like a question and isn't about a book character,
+        treat it as general knowledge.
         """
         query_lower = query.lower().strip()
 
-        # Definitional
-        if re.search(r'\b(what does|define|meaning of|what is|what are)\b', query_lower):
-            return 'DEFINITIONAL'
+        # === Conversational intents (check first) ===
 
-        # Who/What is X? (definitional - describes an entity)
-        if re.search(r'\bwho (is|was|are|were)\b', query_lower):
-            return 'DEFINITIONAL'
+        # Greeting
+        if re.search(r'^(hi|hello|hey|good morning|good afternoon|good evening|howdy|greetings|what\'s up|sup|yo)\b', query_lower):
+            return 'GREETING'
 
-        # Factual (who, what, when, where, how many)
-        if re.search(r'\b(who|when|where|how many|how much)\b', query_lower):
+        # Farewell
+        if re.search(r'^(bye|goodbye|see you|good night|take care|later|farewell|cheers|cya)\b', query_lower):
+            return 'FAREWELL'
+
+        # Help request
+        if re.search(r'^(help|can you help|assist me|i need help|could you help|what can you do)\b', query_lower):
+            return 'HELP'
+
+        # Emotional expressions
+        if re.search(r"i('m|\s+am)\s+(feeling|so\s+|very\s+)?\s*(sad|happy|excited|angry|frustrated|anxious|worried|great|terrible|amazing|awful|depressed|overwhelmed|grateful|thankful|stressed|tired|exhausted|energetic|motivated|inspired)", query_lower):
+            return 'EMOTIONAL'
+
+        # Personal statements: preferences
+        if re.search(r'\b(i\s+(like|love|enjoy|hate|dislike|prefer|adore|can\'t stand|really like|absolutely love|am into|am fond of))\b', query_lower):
+            return 'PERSONAL_STATEMENT'
+
+        # Personal statements: facts about self
+        if re.search(r'\b(i\s+am|i\'m|i\s+work|i\s+live|my\s+name\s+is|i\s+have|i\s+was\s+born|i\s+come\s+from|i\s+study|i\s+go\s+to)\b', query_lower):
+            return 'PERSONAL_STATEMENT'
+
+        # Opinion requests
+        if re.search(r'what do you think|do you (like|prefer|enjoy|believe|agree)|your opinion|what\'s your (view|take|stance)|how do you feel about', query_lower):
+            return 'OPINION'
+
+        # Negative feedback / corrections
+        if re.search(r'^(no|nope|wrong|incorrect|thats not|that\'s not|not right|not correct|you\'re wrong|you are wrong|i meant|i mean|actually|correction)', query_lower):
+            return 'CORRECTION'
+
+        # Acknowledgments / confirmations
+        if re.search(r'^(yes|yeah|yep|correct|right|exactly|true|sure|ok|okay|got it|understood|thanks|thank you)', query_lower):
+            return 'ACKNOWLEDGMENT'
+
+        # Statements about facts (not questions)
+        # "X is Y", "X was Y", "X has Y"
+        if re.search(r'^[a-z]+\s+(is|was|are|were|has|have|had|can|will|would|could|should)\s+', query_lower):
+            # Check if it's about a book entity
+            if self._is_book_query(query_lower):
+                return 'FACTUAL'
+            # Otherwise treat as a statement (conversational)
+            return 'STATEMENT'
+
+        # === Book-specific queries (in the text) ===
+        if self._is_book_query(query_lower):
             return 'FACTUAL'
 
-        # What questions (could be definitional or factual)
-        if re.search(r'\bwhat\b', query_lower):
-            # Check if it's asking about a specific entity
-            if re.search(r'\bwhat (happened|did|was|were|is|are)\b', query_lower):
-                return 'FACTUAL'
-            return 'DEFINITIONAL'
+        # === Explicit "in the text/book" queries ===
+        if re.search(r'\b(in the (text|book|story|novel|chapter|passage|excerpt))\b', query_lower):
+            return 'FACTUAL'
 
-        # Causal
-        if re.search(r'\b(why|what caused|reason|because|what made)\b', query_lower):
-            return 'CAUSAL'
+        # === DYNAMIC: If it looks like a question about the world ===
+        if self._is_world_question(query_lower):
+            return 'GENERAL_KNOWN'
 
-        # Temporal
-        if re.search(r'\b(when|before|after|during|timeline|what time)\b', query_lower):
-            return 'TEMPORAL'
+        # === Book-specific intents ===
 
-        # Comparative
-        if re.search(r'\b(difference|compare|vs|versus|better|worse)\b', query_lower):
-            return 'COMPARATIVE'
-
-        # Summarization
-        if re.search(r'\b(summarize|summary|overview|what about|tell me about)\b', query_lower):
+        # Summarization (only for book-related)
+        if re.search(r'\b(summarize|summary|overview)\b', query_lower):
             return 'SUMMARIZATION'
+
+        # Tell me about (could be book or general)
+        if re.search(r'\btell me about\b', query_lower):
+            if self._is_book_query(query_lower):
+                return 'SUMMARIZATION'
+            return 'GENERAL_KNOWN'
 
         # Listing
         if re.search(r'\b(list|all|every|enumerate|name)\b', query_lower):
@@ -92,6 +132,65 @@ class QueryClassifier(BaseModule):
 
         # Explanatory (default)
         return 'EXPLANATORY'
+
+    def _is_world_question(self, query: str) -> bool:
+        """
+        Dynamically detect if input is a question about the real world.
+        No hard-coded topics — just structural detection.
+        """
+        # Must look like a question
+        if not self._looks_like_question(query):
+            return False
+
+        # Exclude book queries
+        if self._is_book_query(query):
+            return False
+
+        return True
+
+    def _looks_like_question(self, query: str) -> bool:
+        """Check if text looks like a question."""
+        # Starts with question word
+        question_starters = [
+            'what', 'who', 'when', 'where', 'why', 'how', 'which',
+            'can', 'does', 'do', 'did', 'is', 'are', 'was', 'were',
+            'tell me', 'explain', 'describe',
+        ]
+
+        for starter in question_starters:
+            if query.startswith(starter):
+                return True
+
+        # Ends with question mark
+        if query.rstrip().endswith('?'):
+            return True
+
+        return False
+
+    def _is_book_query(self, query: str) -> bool:
+        """Check if query is specifically about the book."""
+        # Check hardcoded book entities
+        for entity in self.BOOK_ENTITIES:
+            if entity in query:
+                return True
+
+        # Check database for known entities
+        if hasattr(self, 'db_manager') and self.db_manager:
+            try:
+                words = query.split()
+                for word in words:
+                    cleaned = word.strip('.,;:!?()[]"\'')
+                    if cleaned and len(cleaned) > 2:
+                        result = self.db_manager.execute(
+                            "SELECT 1 FROM entities WHERE canonical_name LIKE ? LIMIT 1",
+                            (f'%{cleaned}%',)
+                        )
+                        if result:
+                            return True
+            except Exception:
+                pass
+
+        return False
 
     def _extract_query_terms(self, query: str) -> List[str]:
         """

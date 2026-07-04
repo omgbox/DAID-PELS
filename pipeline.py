@@ -5,6 +5,7 @@ This class manages the training and query pipelines, ensuring
 modules are executed in the correct sequence with proper data flow.
 """
 
+import re
 from typing import Any, Dict, List, Optional
 import logging
 import time
@@ -199,9 +200,31 @@ class Pipeline:
     def run_query(self, query: str, context: PipelineContext,
                   conversation_memory=None) -> Dict[str, Any]:
         """
-        Run the query pipeline with conversation awareness and structured knowledge.
+        Run query through the conversational AI pipeline.
+        Simple flow: Understand → Retrieve → Generate → Respond
         """
         self.logger.info(f"Query: {query}")
+
+        # Use Conversational AI as primary handler
+        conv_ai = self._get_conversational_ai()
+        response = conv_ai.chat(query)
+
+        return {
+            'answer': response,
+            'intent': 'CONVERSATIONAL',
+            'route': 'ai',
+            'confidence': 0.9,
+            'sources': [],
+        }
+
+    def _get_conversational_ai(self):
+        """Lazy-load the conversational AI."""
+        if not hasattr(self, '_conv_ai'):
+            from .query.conversational_ai import ConversationalAI
+            self._conv_ai = ConversationalAI(self.db)
+        return self._conv_ai
+
+        # === Book QA (existing pipeline) ===
 
         # Step 1: Contextual Query Rewriting
         rewriter = self.modules.get('contextual_rewriter')
@@ -222,9 +245,7 @@ class Pipeline:
 
         effective_query = rewrite_result['rewritten_query']
 
-        # Step 2: Query Classifier
-        query_classifier = self.modules.get('query_classifier')
-        intent = rewrite_result.get('intent_carryover') or 'EXPLANATORY'
+        # Step 2: Query Classifier (already done above, reuse)
         if not rewrite_result.get('intent_carryover') and query_classifier:
             intent_result = query_classifier.process({'query': effective_query})
             intent = intent_result.get('intent', 'EXPLANATORY')
@@ -311,7 +332,7 @@ class Pipeline:
                            else r[0] if isinstance(r, (list, tuple)) and r
                            else str(r) for r in entity_evidence.get('related_entities', [])]
 
-                # Retrieve original sentences
+                # Retrieve original sentences with quality filtering
                 orig_sentences = []
                 if self.db:
                     sids = []
@@ -329,7 +350,10 @@ class Pipeline:
                         rows = self.db.execute(
                             f"SELECT raw_text FROM sentences "
                             f"WHERE sentence_id IN ({placeholders}) "
-                            f"AND LENGTH(raw_text) > 25 AND LENGTH(raw_text) < 400",
+                            f"AND LENGTH(raw_text) > 40 AND LENGTH(raw_text) < 300 "
+                            f"AND raw_text NOT LIKE '%\"%' "  # Skip dialogue
+                            f"AND raw_text NOT LIKE '%--%' "  # Skip dashes
+                            f"AND raw_text NOT LIKE '%;%' ",  # Skip complex sentences
                             sids
                         )
                         orig_sentences = [r[0] for r in rows]
@@ -339,8 +363,12 @@ class Pipeline:
                     if self.db:
                         rows = self.db.execute(
                             "SELECT raw_text FROM sentences "
-                            "WHERE raw_text LIKE ? AND LENGTH(raw_text) > 25 "
-                            "AND LENGTH(raw_text) < 400 ORDER BY RANDOM() LIMIT 30",
+                            "WHERE raw_text LIKE ? "
+                            "AND LENGTH(raw_text) > 40 AND LENGTH(raw_text) < 300 "
+                            "AND raw_text NOT LIKE '%\"%' "
+                            "AND raw_text NOT LIKE '%--%' "
+                            "AND raw_text NOT LIKE '%;%' "
+                            "ORDER BY LENGTH(raw_text) DESC LIMIT 30",
                             (f'%{primary_entity}%',)
                         )
                         orig_sentences = [r[0] for r in rows]
@@ -451,13 +479,24 @@ class Pipeline:
                 'query_entities': query_entities,
             })
 
-        # Step 10: Update conversation memory
+        # Step 10: Update conversation memory and learn
         if conversation_memory:
             conversation_memory.add_turn(
                 user_query=query,
                 answer=response.get('answer', ''),
                 entities=query_entities,
                 intent=intent,
+            )
+
+            # Learn from this turn
+            user_profile = self.modules.get('user_profile')
+            knowledge_retriever = self.modules.get('general_knowledge_retriever')
+            conversation_memory.learn_from_turn(
+                user_query=query,
+                answer=response.get('answer', ''),
+                intent=intent,
+                user_profile=user_profile,
+                knowledge_retriever=knowledge_retriever
             )
 
         return response
@@ -510,3 +549,305 @@ class Pipeline:
                 pass
 
         return entities
+
+    def _run_conversational(self, query: str, intent: str,
+                           conversation_memory=None) -> Dict[str, Any]:
+        """
+        Handle conversational intents (greetings, farewells, emotional, etc.).
+
+        Args:
+            query: User's query
+            intent: Classified intent
+            conversation_memory: Conversation memory object
+
+        Returns:
+            Response dict
+        """
+        responder = self.modules.get('conversational_responder')
+        if not responder:
+            # Import and create if not registered
+            from .query.conversational_responder import ConversationalResponder
+            responder = ConversationalResponder()
+
+        # Build context from conversation memory and user profile
+        context = {}
+        if conversation_memory:
+            context['user_name'] = conversation_memory.get_user_name() if hasattr(conversation_memory, 'get_user_name') else None
+
+        # Add learned knowledge to context
+        knowledge_retriever = self.modules.get('general_knowledge_retriever')
+        if knowledge_retriever:
+            try:
+                # Get recent learned knowledge
+                if knowledge_retriever.db:
+                    rows = knowledge_retriever.db.execute(
+                        "SELECT topic, fact, confidence FROM learned_knowledge "
+                        "ORDER BY timestamp DESC LIMIT 10"
+                    )
+                    context['learned_knowledge'] = [
+                        {'topic': r[0], 'fact': r[1], 'confidence': r[2]}
+                        for r in rows
+                    ]
+            except Exception:
+                context['learned_knowledge'] = []
+
+        # Add user preferences to context
+        user_profile = self.modules.get('user_profile')
+        if user_profile:
+            try:
+                context['user_preferences'] = user_profile.get_preferences()
+            except Exception:
+                context['user_preferences'] = []
+
+        result = responder.process(intent, query, context)
+
+        # Personalize response
+        response_text = result.get('response', '')
+        personalizer = self.modules.get('response_personalizer')
+        if personalizer:
+            user_profile = self.modules.get('user_profile')
+            response_text = personalizer.personalize(
+                response_text, intent, user_profile, conversation_memory
+            )
+
+        return {
+            'answer': response_text,
+            'intent': intent,
+            'route': 'conversational',
+            'confidence': 1.0,
+            'sources': [],
+        }
+
+    def _run_personal(self, query: str, intent: str,
+                     conversation_memory=None) -> Dict[str, Any]:
+        """
+        Handle personal statements ("I like gardening").
+
+        Args:
+            query: User's query
+            intent: Classified intent
+            conversation_memory: Conversation memory object
+
+        Returns:
+            Response dict
+        """
+        handler = self.modules.get('personal_statement_handler')
+        if not handler:
+            # Import and create if not registered
+            from .query.personal_statement_handler import PersonalStatementHandler
+            from .query.user_profile import UserProfile
+
+            user_profile = self.modules.get('user_profile')
+            if not user_profile:
+                user_profile = UserProfile(self.db)
+                user_profile.initialize()
+
+            handler = PersonalStatementHandler(user_profile)
+
+        result = handler.process(query)
+
+        # Store in conversation memory if available
+        if conversation_memory and result.get('stored'):
+            conversation_memory.add_turn(query, result['response'], intent='PERSONAL_STATEMENT')
+
+        # Personalize response
+        response_text = result.get('response', '')
+        personalizer = self.modules.get('response_personalizer')
+        if personalizer:
+            user_profile = self.modules.get('user_profile')
+            response_text = personalizer.personalize(
+                response_text, intent, user_profile, conversation_memory
+            )
+
+        return {
+            'answer': response_text,
+            'intent': intent,
+            'route': 'personal',
+            'confidence': 1.0,
+            'sources': [],
+        }
+
+    def _run_knowledge(self, query: str, intent: str, context: PipelineContext,
+                      conversation_memory=None) -> Dict[str, Any]:
+        """
+        Handle general knowledge queries using RAG with CONTEXT.
+        """
+        retriever = self.modules.get('general_knowledge_retriever')
+        if not retriever:
+            from .query.general_knowledge_retriever import GeneralKnowledgeRetriever
+            retriever = GeneralKnowledgeRetriever(self.db)
+
+        # Step 1: Expand query with conversation context
+        expanded_query = self._expand_with_context(query, conversation_memory)
+
+        # Step 2: Retrieve Wikipedia facts
+        results = retriever.retrieve(expanded_query, max_results=3)
+
+        if results:
+            best = results[0]
+            wiki_text = best.get('text', '')
+            wiki_title = best.get('title', '')
+
+            # Step 3: Use DistilGPT2 to rewrite as natural answer
+            natural_answer = self._rewrite_with_gpt2(query, wiki_text, wiki_title)
+
+            if natural_answer:
+                return {
+                    'answer': natural_answer,
+                    'intent': intent,
+                    'route': 'knowledge',
+                    'confidence': best.get('confidence', 0.8),
+                    'sources': [wiki_title],
+                }
+
+            return {
+                'answer': wiki_text,
+                'intent': intent,
+                'route': 'knowledge',
+                'confidence': best.get('confidence', 0.8),
+                'sources': [wiki_title],
+            }
+
+        # No knowledge found
+        return {
+            'answer': "I don't have specific information about that topic. "
+                     "Could you tell me more about what you're interested in?",
+            'intent': intent,
+            'route': 'knowledge',
+            'confidence': 0.1,
+            'sources': [],
+        }
+
+    def _expand_with_context(self, query: str, conversation_memory=None) -> str:
+        """
+        Expand query with conversation context.
+        E.g., "tell me more about the Demilitarized Zone" 
+        becomes "Korean Demilitarized Zone" if we just discussed South Korea.
+        """
+        import re
+
+        if not conversation_memory:
+            return query
+
+        # Get the last answer's entities
+        last_turn = conversation_memory.get_last_turn()
+        if not last_turn:
+            return query
+
+        last_answer = last_turn.get('answer', '')
+        last_sources = last_turn.get('sources', [])
+
+        # Check if query contains vague references
+        vague_patterns = [
+            r'\b(the|this|that|it|its|them|they)\b',
+            r'\btell me more\b',
+            r'\bwhat about\b',
+            r'\band\b',
+            r'\balso\b',
+        ]
+
+        is_vague = any(re.search(p, query.lower()) for p in vague_patterns)
+
+        if not is_vague:
+            return query
+
+        # Extract entities from the last answer
+        # Look for capitalized words that might be entities
+        entities = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', last_answer)
+
+        # Also check sources
+        for source in last_sources:
+            if source and source not in entities:
+                entities.append(source)
+
+        if not entities:
+            return query
+
+        # Find the most relevant entity to add to the query
+        # Check if any entity words appear in the query
+        query_lower = query.lower()
+        query_words = set(query_lower.split())
+
+        # Remove common words that might cause false matches
+        query_words -= {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'do', 'does', 'did',
+                       'have', 'has', 'had', 'will', 'would', 'could', 'should', 'may',
+                       'might', 'shall', 'can', 'of', 'in', 'to', 'for', 'with', 'on',
+                       'at', 'from', 'by', 'about', 'as', 'into', 'through', 'during',
+                       'before', 'after', 'above', 'below', 'between', 'out', 'off',
+                       'over', 'under', 'again', 'further', 'then', 'once', 'here',
+                       'there', 'when', 'where', 'why', 'how', 'all', 'each', 'every',
+                       'both', 'few', 'more', 'most', 'other', 'some', 'such', 'no',
+                       'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very',
+                       'just', 'and', 'but', 'or', 'if', 'while', 'this', 'that', 'these',
+                       'those', 'i', 'me', 'my', 'we', 'our', 'you', 'your', 'he', 'him',
+                       'his', 'she', 'her', 'it', 'its', 'they', 'them', 'their', 'tell',
+                       'me', 'more', 'about'}
+
+        for entity in entities:
+            entity_lower = entity.lower()
+            entity_words = set(entity_lower.split())
+
+            # Check if entity words overlap with query words
+            overlap = entity_words & query_words
+
+            if overlap:
+                # Entity partially matches - return the entity as the new query
+                return entity
+
+        # If query is about "the" something, add the main entity
+        if query_lower.startswith(('the ', 'this ', 'that ')):
+            # Use the main entity from the last answer
+            main_entity = entities[0] if entities else ''
+            if main_entity:
+                return main_entity
+
+        # For "tell me more" queries, add context
+        if 'tell me more' in query_lower:
+            main_entity = entities[0] if entities else ''
+            if main_entity:
+                return main_entity
+
+        return query
+
+    def _rewrite_with_gpt2(self, query: str, wiki_text: str, title: str) -> str:
+        """
+        Use DistilGPT2 to rewrite Wikipedia facts as natural human language.
+        This is the RAG (Retrieval-Augmented Generation) approach.
+        """
+        try:
+            from .minigpt import DistilGPT2Generator
+
+            generator = DistilGPT2Generator()
+            if not generator.load():
+                return None
+
+            # Build a prompt that asks GPT2 to rewrite the Wikipedia text
+            # as a natural answer to the user's question
+            prompt = f"Question: {query}\nFacts: {wiki_text[:300]}\nAnswer:"
+
+            # Generate natural language response
+            response = generator.generate_from_prompt(
+                prompt,
+                max_tokens=100,
+                temperature=0.7
+            )
+
+            if response and len(response) > 20:
+                # Clean up the response
+                # Remove the prompt if it's repeated
+                if response.startswith(prompt):
+                    response = response[len(prompt):].strip()
+
+                # Take only the first few sentences
+                sentences = response.split('. ')
+                clean_response = '. '.join(sentences[:3]) + '.'
+
+                # Basic quality check - response should be different from input
+                if clean_response.lower() != wiki_text[:len(clean_response)].lower():
+                    return clean_response
+
+            return None
+
+        except Exception as e:
+            self.logger.debug(f"GPT2 rewrite failed: {e}")
+            return None

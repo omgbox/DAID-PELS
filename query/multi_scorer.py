@@ -247,6 +247,9 @@ class MultiDimScorer:
         Train the full model (encoder + heads + combination weights).
         Uses MSE loss on heuristic labels.
         """
+        import time
+        import sys
+
         # Pre-compute features and head outputs
         all_features = []
         for sent in sentences:
@@ -255,10 +258,19 @@ class MultiDimScorer:
 
         features = np.array(all_features)
         labels_arr = np.array(labels, dtype=np.float32)
+        n_samples = len(features)
+
+        print(f"\n  Samples: {n_samples}")
+        print(f"  Epochs: {epochs}")
+        print()
+
+        bar_len = 30
 
         for epoch in range(epochs):
-            perm = np.random.permutation(len(features))
+            epoch_start = time.time()
+            perm = np.random.permutation(n_samples)
             total_loss = 0.0
+            processed = 0
 
             for idx in perm:
                 feat = features[idx]
@@ -315,9 +327,33 @@ class MultiDimScorer:
                     d_w = d_final * head_preds[i]
                     self.combo_weights[i] -= lr * 0.1 * d_w
 
-            avg_loss = total_loss / len(features)
-            if (epoch + 1) % 5 == 0:
-                logger.info(f"  Epoch {epoch + 1}: loss={avg_loss:.4f}")
+                processed += 1
+
+                # Progress bar every 200 samples
+                if processed % 200 == 0 or processed == n_samples:
+                    pct = processed / n_samples * 100
+                    filled = int(bar_len * processed / n_samples)
+                    bar = '#' * filled + '-' * (bar_len - filled)
+                    elapsed = time.time() - epoch_start
+                    eta = elapsed / processed * (n_samples - processed) if processed > 0 else 0
+                    avg_loss = total_loss / processed
+                    sys.stdout.write(
+                        f"\r  Epoch {epoch + 1:>2}/{epochs} |{bar}| "
+                        f"{pct:>5.1f}% ({processed}/{n_samples}) | "
+                        f"loss: {avg_loss:.4f} | "
+                        f"{elapsed:.0f}s | ETA: {eta:.0f}s"
+                    )
+                    sys.stdout.flush()
+
+            avg_loss = total_loss / n_samples
+            elapsed = time.time() - epoch_start
+
+            sys.stdout.write(
+                f"\r  Epoch {epoch + 1:>2}/{epochs} |{'#' * bar_len}| "
+                f"100.0% ({n_samples}/{n_samples}) | "
+                f"loss: {avg_loss:.4f} | {elapsed:.0f}s           \n"
+            )
+            sys.stdout.flush()
 
     def train_platt_scaling(self, sentences: List[str], labels: List[float],
                             entity: str, query: str, intent: str):

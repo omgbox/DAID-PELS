@@ -49,14 +49,14 @@ def _load_components():
         _token_attn = None
 
     try:
-        from .minigpt import load_minigpt
-        _minigpt = load_minigpt()
+        from .minigpt import load_distilgpt2
+        _minigpt = load_distilgpt2()
         if _minigpt:
-            logger.info("Loaded MiniGPT")
+            logger.info("Loaded DistilGPT2")
         else:
-            logger.info("MiniGPT not available (load failed)")
+            logger.info("DistilGPT2 not available (load failed)")
     except Exception as e:
-        logger.info(f"MiniGPT not available: {e}")
+        logger.info(f"DistilGPT2 not available: {e}")
         _minigpt = None
 
 
@@ -137,19 +137,19 @@ def generate_answer(entity: str, original_sentences: List[str],
         text = ' '.join(selected)
         options = {'neutral': text}
 
-    # Step 2b: MiniGPT prose generation
+    # Step 2b: DistilGPT2 prose generation
     if _minigpt and selected:
         try:
-            # Build prompt from entity and first sentence context
-            prompt = f"{entity} "
-            if selected:
-                first_words = ' '.join(selected[0].split()[:5])
-                prompt = first_words
-            generated = _minigpt.generate_from_prompt(prompt, max_tokens=60, temperature=0.7)
-            if generated and len(generated) > 20:
-                options['minigpt'] = generated
+            # Build rich prompt from selected sentences
+            prompt = _build_gpt2_prompt(entity, selected, related)
+            generated = _minigpt.generate_from_prompt(prompt, max_tokens=80, temperature=0.7)
+            if generated and len(generated) > 30:
+                # Clean up repetitive text
+                generated = _clean_gpt2_output(generated, entity)
+                if generated:
+                    options['gpt2'] = generated
         except Exception as e:
-            logger.debug(f"MiniGPT generation failed: {e}")
+            logger.debug(f"DistilGPT2 generation failed: {e}")
 
     # Step 3: Pick best option
     best_style = 'neutral'
@@ -175,6 +175,89 @@ def generate_answer(entity: str, original_sentences: List[str],
         'best': best,
         'scores': score_details,
     }
+
+
+def _build_gpt2_prompt(entity: str, sentences: List[str], related: List[str]) -> str:
+    """Build a grounded prompt for DistilGPT2 generation."""
+    parts = []
+    
+    # Use the best source sentences directly as context
+    if sentences:
+        # Take top 2-3 best sentences and clean them
+        good_sentences = []
+        for sent in sentences[:3]:
+            # Clean the sentence
+            sent = sent.strip()
+            if sent and len(sent.split()) >= 8:
+                good_sentences.append(sent)
+        
+        if good_sentences:
+            # Join source sentences as context
+            context = ' '.join(good_sentences)
+            # Truncate if too long
+            if len(context) > 200:
+                context = context[:200].rsplit(' ', 1)[0] + '.'
+            parts.append(context)
+    
+    # Add entity and relationships for grounding
+    if related:
+        rel_str = ', '.join(related[:2])
+        parts.append(f"{entity} interacts with {rel_str}.")
+    
+    # Final prompt: use source text as grounding
+    parts.append(f"In summary, {entity}")
+    
+    return ' '.join(parts)
+
+
+def _clean_gpt2_output(text: str, entity: str) -> str:
+    """Clean DistilGPT2 output to remove hallucination and repetition."""
+    import re
+    
+    # Split into sentences
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    
+    # Filter out hallucinated content
+    cleaned = []
+    for sent in sentences:
+        sent = sent.strip()
+        if not sent or len(sent) < 15:
+            continue
+            
+        # Skip if it looks like Wikipedia/hallucinated content
+        hallucination_markers = [
+            'episode', 'season', 'aired', 'interview', 'published',
+            'released', 'directed', 'produced', 'written by',
+            'according to', 'cited', 'reference', 'source',
+            'www.', 'http', 'ISBN', 'doi:',
+        ]
+        if any(marker.lower() in sent.lower() for marker in hallucination_markers):
+            continue
+            
+        # Skip if entity name appears too often (repetitive)
+        entity_count = sent.lower().count(entity.lower())
+        if entity_count > 2 and len(sent.split()) < 15:
+            continue
+            
+        # Skip if it's just the entity name repeated
+        words = sent.split()
+        if len(words) < 5:
+            continue
+            
+        cleaned.append(sent)
+    
+    # Take only first 2-3 sentences to keep it concise
+    result = ' '.join(cleaned[:3])
+    
+    # Ensure it ends with punctuation
+    if result and result[-1] not in '.!?':
+        result += '.'
+    
+    # Verify it mentions the entity
+    if entity.lower() not in result.lower():
+        return ''
+    
+    return result if len(result) > 30 else ''
 
 
 def _handle_description_query(entity: str, query: str,
@@ -333,26 +416,77 @@ def _extract_traits(entity: str, sentences: List[str]) -> List[str]:
                 if w in lower and w not in traits:
                     traits.append(w)
     return traits[:5]
-    """Simple sentence ranking fallback."""
+
+
+def _simple_rank(sentences: List[str], entity: str) -> List[str]:
+    """Simple sentence ranking with quality filtering."""
     scored = []
     entity_lower = entity.lower()
+    
     for sent in sentences:
         score = 0.0
         lower = sent.lower()
         words = sent.split()
-
+        wc = len(words)
+        
+        # FILTER: Skip fragments and low-quality sentences
+        if wc < 6:
+            continue  # Too short
+        if wc > 40:
+            continue  # Too long (run-on)
+        if lower.startswith(('and ', 'but ', 'or ', 'so ', 'then ')):
+            continue  # Fragment starting with conjunction
+        if not any(c in sent for c in '.!?'):
+            if wc < 10:
+                continue  # No punctuation and short = fragment
+                
+        # BOOST: Entity as subject (natural descriptions)
         if lower.startswith(entity_lower):
-            score += 4.0
-        if 8 <= len(words) <= 25:
+            score += 5.0
+            
+        # BOOST: Complete thoughts with verbs
+        has_verb = any(w in lower for w in [
+            'was', 'were', 'is', 'are', 'had', 'has', 'felt', 'looked',
+            'turned', 'smiled', 'said', 'replied', 'thought', 'knew',
+            'saw', 'heard', 'found', 'gave', 'took', 'made', 'came',
+            'went', 'told', 'asked', 'answered', 'declared', 'seemed',
+        ])
+        if has_verb:
+            score += 3.0
+            
+        # BOOST: Descriptive sentences (adjectives + entity)
+        DESCRIPTIVE_WORDS = [
+            'beautiful', 'handsome', 'kind', 'gentle', 'clever', 'witty',
+            'lively', 'amiable', 'agreeable', 'sensible', 'intelligent',
+            'charming', 'elegant', 'graceful', 'proud', 'humble', 'modest',
+        ]
+        if any(w in lower for w in DESCRIPTIVE_WORDS):
             score += 2.0
+            
+        # BOOST: Medium length (sweet spot for answers)
+        if 10 <= wc <= 20:
+            score += 2.0
+            
+        # BOOST: Complex sentences (clauses, commas)
         if ',' in sent:
             score += 1.0
-        if any(w in lower for w in ['felt', 'looked', 'turned', 'smiled', 'said', 'spoke']):
-            score += 2.0
-        if len(words) < 5:
-            score -= 3.0
-
+        if ';' in sent or ':' in sent:
+            score += 0.5
+            
+        # PENALIZE: Dialogue (less useful for answers)
+        if '"' in sent or '"' in sent or '"' in sent:
+            score -= 1.0
+            
+        # PENALIZE: Starts with lowercase (likely continuation)
+        if sent[0:1].islower():
+            score -= 2.0
+            
+        # PENALIZE: Repetitive structure
+        if lower.count(entity_lower) > 2:
+            score -= 1.0  # Too many entity mentions
+            
         scored.append((score, sent))
-
+    
+    # Sort by score, filter out negatives
     scored.sort(key=lambda x: -x[0])
-    return [s for _, s in scored]
+    return [s for score, s in scored if score > 0]

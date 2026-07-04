@@ -53,6 +53,14 @@ from .query.query_refiner import QueryRefiner
 from .query.response_generator import ResponseGenerator
 from .query.t5_answer_generator import T5AnswerGenerator
 
+# Conversational modules (new)
+from .query.conversation_router import ConversationRouter
+from .query.conversational_responder import ConversationalResponder
+from .query.personal_statement_handler import PersonalStatementHandler
+from .query.user_profile import UserProfile
+from .query.general_knowledge_retriever import GeneralKnowledgeRetriever
+from .query.response_personalizer import ResponsePersonalizer
+
 
 def create_pipeline(config: dict = None, db_manager=None) -> Pipeline:
     """
@@ -98,6 +106,14 @@ def create_pipeline(config: dict = None, db_manager=None) -> Pipeline:
     # New modules (Phases 2-6)
     pipeline.register_module('answer_synthesizer', AnswerSynthesizer())
     pipeline.register_module('t5_generator', T5AnswerGenerator())
+
+    # Conversational modules (new)
+    pipeline.register_module('conversation_router', ConversationRouter(config))
+    pipeline.register_module('conversational_responder', ConversationalResponder())
+    pipeline.register_module('personal_statement_handler', PersonalStatementHandler())
+    pipeline.register_module('user_profile', UserProfile(db_manager))
+    pipeline.register_module('general_knowledge_retriever', GeneralKnowledgeRetriever(db_manager))
+    pipeline.register_module('response_personalizer', ResponsePersonalizer())
 
     return pipeline
 
@@ -476,11 +492,12 @@ def query(db_path: str, single_query: str = None):
     conversation_memory = ConversationMemory(max_history=10)
 
     print("\n" + "=" * 60)
-    print("  BOOKBOT - Pride and Prejudice")
+    print("  BOOKBOT - Conversational Assistant")
     print("=" * 60)
-    print(f"  Loaded {len(context.sentences):,} sentences")
+    if context.sentences:
+        print(f"  Loaded {len(context.sentences):,} sentences")
     print("  Type your questions, or 'quit' to exit.")
-    print("  Try: 'Who is Elizabeth?', 'Tell me more about Darcy'")
+    print("  Try: 'Tell me about gardening', 'Who is Elizabeth?', 'I like cooking'")
     print("=" * 60)
 
     if single_query:
@@ -523,13 +540,27 @@ def _print_response(result: dict):
             'professional': 'Professional, concise',
             'formal': 'Formal, literary',
             'neutral': 'Neutral summary',
+            'gpt2': 'DistilGPT2 prose',
         }
         for i, (style, text) in enumerate(options.items(), 1):
             label = LABELS.get(style, style.title())
             print(f"\nOption {i} -- {label}")
-            print(text)
+            # Handle Unicode encoding issues
+            try:
+                print(text)
+            except UnicodeEncodeError:
+                # Replace non-encodable characters
+                safe_text = text.encode('ascii', errors='replace').decode('ascii')
+                print(safe_text)
     else:
-        print("\n" + result.get('answer', 'No answer found.'))
+        answer_text = result.get('answer', 'No answer found.')
+        # Handle Unicode encoding issues
+        try:
+            print("\n" + answer_text)
+        except UnicodeEncodeError:
+            # Replace non-encodable characters
+            safe_text = answer_text.encode('ascii', errors='replace').decode('ascii')
+            print("\n" + safe_text)
 
     if result.get('sources'):
         print("\n[SOURCES]")

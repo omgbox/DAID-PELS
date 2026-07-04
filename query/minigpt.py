@@ -431,3 +431,92 @@ def load_minigpt(model_path: str = 'C:/projects/bookbot/minigpt.pt',
     except Exception as e:
         logger.warning(f"Failed to load MiniGPT: {e}")
         return None
+
+
+class DistilGPT2Generator:
+    """
+    DistilGPT2-based text generator — drop-in replacement for MiniGPT.
+    82M params vs 463K, dramatically better prose quality.
+    """
+
+    def __init__(self):
+        self.model = None
+        self.tokenizer = None
+        self._loaded = False
+
+    def load(self):
+        """Load DistilGPT2 model."""
+        if self._loaded:
+            return True
+
+        try:
+            import torch
+            from transformers import GPT2LMHeadModel, GPT2Tokenizer
+
+            logger.info("Loading DistilGPT2...")
+            self.tokenizer = GPT2Tokenizer.from_pretrained('distilgpt2')
+            self.model = GPT2LMHeadModel.from_pretrained('distilgpt2')
+            self.model.eval()
+
+            # Move to CPU explicitly
+            self.model = self.model.to('cpu')
+
+            self._loaded = True
+            logger.info("DistilGPT2 loaded successfully")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to load DistilGPT2: {e}")
+            return False
+
+    def generate_from_prompt(self, prompt: str, max_tokens: int = 80,
+                             temperature: float = 0.7) -> str:
+        """Generate text from a prompt with repetition penalty."""
+        if not self._loaded:
+            if not self.load():
+                return ''
+
+        try:
+            import torch
+
+            # Encode prompt
+            inputs = self.tokenizer(prompt, return_tensors='pt')
+            input_ids = inputs['input_ids']
+
+            # Generate with repetition penalty
+            with torch.no_grad():
+                output = self.model.generate(
+                    input_ids,
+                    max_new_tokens=max_tokens,
+                    temperature=temperature,
+                    do_sample=True,
+                    top_k=50,
+                    top_p=0.95,
+                    repetition_penalty=1.3,  # Penalize repetition
+                    no_repeat_ngram_size=3,
+                    pad_token_id=self.tokenizer.eos_token_id,
+                )
+
+            # Decode
+            generated = self.tokenizer.decode(output[0], skip_special_tokens=True)
+
+            # Clean up: remove the prompt from the output if it's repeated
+            if generated.startswith(prompt):
+                generated = generated[len(prompt):].strip()
+
+            return generated if len(generated) > 10 else ''
+
+        except Exception as e:
+            logger.debug(f"DistilGPT2 generation failed: {e}")
+            return ''
+
+
+def load_distilgpt2() -> Optional[DistilGPT2Generator]:
+    """Load DistilGPT2 generator (preferred over MiniGPT)."""
+    try:
+        generator = DistilGPT2Generator()
+        if generator.load():
+            return generator
+        return None
+    except Exception as e:
+        logger.warning(f"Failed to load DistilGPT2: {e}")
+        return None

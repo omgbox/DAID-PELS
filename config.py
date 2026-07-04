@@ -189,6 +189,40 @@ CONFIDENCE = {
 }
 
 # =============================================================================
+# CONVERSATIONAL PARAMETERS (NEW)
+# =============================================================================
+
+CONVERSATIONAL = {
+    'enable_general_knowledge': True,
+    'enable_personal_statements': True,
+    'enable_learning': True,
+    'general_knowledge_sources': ['wikipedia', 'local_kb', 'generated'],
+    'max_learned_facts': 10000,
+    'personalization_strength': 0.3,
+    'conversation_style': 'friendly',  # 'friendly', 'formal', 'casual'
+}
+
+# Intent routing
+INTENT_ROUTING = {
+    'GREETING': 'conversational',
+    'FAREWELL': 'conversational',
+    'HELP': 'conversational',
+    'EMOTIONAL': 'conversational',
+    'OPINION': 'conversational',
+    'PERSONAL_STATEMENT': 'personal',
+    'GENERAL_KNOWN': 'knowledge',
+    # Book intents stay as 'book'
+    'DEFINITIONAL': 'book',
+    'FACTUAL': 'book',
+    'CAUSAL': 'book',
+    'TEMPORAL': 'book',
+    'COMPARATIVE': 'book',
+    'SUMMARIZATION': 'book',
+    'EXPLANATORY': 'book',
+    'LISTING': 'book',
+}
+
+# =============================================================================
 # DATABASE PARAMETERS
 # =============================================================================
 

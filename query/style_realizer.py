@@ -72,19 +72,34 @@ class StyleRealizer:
             lower = sent.lower()
 
             # Extract traits (adjectives describing entity)
+            # Only include meaningful character traits
             TRAIT_WORDS = {
+                # Positive traits
                 'sensible', 'intelligent', 'beautiful', 'handsome', 'pleasing',
-                'gentle', 'firm', 'quiet', 'warm', 'cold', 'kind', 'clever', 'witty',
-                'spirited', 'lively', 'bright', 'proud', 'humble',
-                'modest', 'elegant', 'graceful', 'charming', 'engaging',
-                'obstinate', 'stubborn', 'willful', 'determined', 'resolute',
-                'amiable', 'agreeable', 'reserved', 'haughty', 'conceited',
-                'vain', 'silly', 'ignorant', 'poor', 'rich', 'wealthy',
-                'young', 'old', 'tall', 'short',
+                'gentle', 'kind', 'clever', 'witty', 'spirited', 'lively',
+                'bright', 'proud', 'humble', 'modest', 'elegant', 'graceful',
+                'charming', 'engaging', 'amiable', 'agreeable', 'reserved',
+                'determined', 'resolute', 'brave', 'courageous', 'faithful',
+                'loyal', 'generous', 'compassionate', 'thoughtful', 'wise',
+                # Negative traits (for contrast)
+                'obstinate', 'stubborn', 'willful', 'haughty', 'conceited',
+                'vain', 'silly', 'ignorant', 'foolish', 'proud', 'cold',
+                'distant', 'aloof', 'arrogant', 'selfish', 'cruel',
+                # Physical traits (only if meaningful)
+                'young', 'beautiful', 'handsome', 'elegant', 'graceful',
             }
+            # Filter out non-descriptive uses
+            PHYSICAL_ONLY = {'tall', 'short', 'old', 'fat', 'thin', 'small'}
             for w in TRAIT_WORDS:
                 if w in lower and w not in facts['traits']:
-                    facts['traits'].append(w)
+                    # Check context: "is [trait]" or "was [trait]" pattern
+                    pattern = rf'{entity_lower}\s+(?:is|was|seemed|appeared)\s+(?:a\s+)?(?:very\s+)?{w}'
+                    if re.search(pattern, lower):
+                        facts['traits'].append(w)
+                    elif w not in PHYSICAL_ONLY:
+                        # For non-physical traits, be more lenient
+                        if w in lower and entity_lower in lower:
+                            facts['traits'].append(w)
 
             # Extract actions (verb phrases about entity)
             if entity_lower in lower:
@@ -96,8 +111,14 @@ class StyleRealizer:
                     'appeared', 'noticed', 'reached', 'drew', 'lifted', 'held',
                     'kept', 'left', 'returned', 'joined', 'called', 'answered',
                     'declared', 'exclaimed', 'whispered', 'observed', 'regarded',
-                    'accepted', 'refused', 'received', 'observed', 'engaged',
+                    'accepted', 'refused', 'received', 'engaged', 'married',
+                    'loved', 'hated', 'desired', 'wished', 'hoped', 'feared',
                 )
+                
+                # Words that indicate incomplete/fragment actions
+                FRAGMENT_WORDS = {'anything', 'something', 'nothing', 'everything',
+                                  'him', 'her', 'them', 'it', 'this', 'that'}
+                
                 # Find entity position
                 ent_pos = lower.find(entity_lower)
                 if ent_pos >= 0:
@@ -111,8 +132,16 @@ class StyleRealizer:
                             rest_words = rest.split()[:6]
                             action = f"{verb} {' '.join(rest_words)}".strip()
                             action = action.rstrip('.,;:!?')
-                            if len(action) > 8 and action not in facts['actions']:
-                                facts['actions'].append(action)
+                            
+                            # Filter out fragments
+                            action_words = set(action.lower().split())
+                            if action_words & FRAGMENT_WORDS:
+                                continue  # Skip fragments with pronouns/determiners
+                            
+                            # Require minimum quality
+                            if len(action) > 12 and len(action.split()) >= 3:
+                                if action not in facts['actions']:
+                                    facts['actions'].append(action)
                             break
 
             # Also look for actions in other positions in the sentence
@@ -126,7 +155,14 @@ class StyleRealizer:
                             rest_words = rest.split()[:5]
                             action = f"{verb} {' '.join(rest_words)}".strip()
                             action = action.rstrip('.,;:!?')
-                            if (len(action) > 8
+                            
+                            # Filter out fragments
+                            action_words_set = set(action.lower().split())
+                            if action_words_set & FRAGMENT_WORDS:
+                                continue  # Skip fragments
+                            
+                            if (len(action) > 12
+                                and len(action.split()) >= 3
                                 and action not in facts['actions']
                                 and not any(a.startswith(verb) for a in facts['actions'])):
                                 facts['actions'].append(action)
@@ -212,10 +248,15 @@ class StyleRealizer:
             # Make it concise
             a = self._shorten_action(a)
             # Don't duplicate entity name
-            if not a.lower().startswith(entity.lower()):
+            if not a.lower().startswith(entity.lower()) and len(a) > 10:
                 parts.append(f"{entity} {a}.")
-
-        # Relationships (one line)
+        elif facts.get('scene_details'):
+            # Use a scene detail as fallback
+            scene = facts['scene_details'][0]
+            if entity.lower() in scene.lower():
+                parts.append(scene.rstrip('.') + '.')
+        
+        # Add relationship context
         rel = facts.get('relationships', [])
         if rel:
             if len(rel) == 1:
@@ -265,8 +306,10 @@ class StyleRealizer:
         # Actions with elevated language
         actions = facts.get('actions', [])
         if actions:
-            a = self._elevate_action(actions[0])
-            parts.append(f"{entity} {a}.")
+            a = self._shorten_action(actions[0])
+            if len(a) > 10:  # Only use if meaningful
+                a = self._elevate_action(a)
+                parts.append(f"{entity} {a}.")
 
         # Relationships
         rel = facts.get('relationships', [])
@@ -302,8 +345,9 @@ class StyleRealizer:
         # Actions
         actions = facts.get('actions', [])
         if actions:
-            a = actions[0]
-            parts.append(f"Throughout the story, {entity} {a}.")
+            a = self._shorten_action(actions[0])
+            if len(a) > 10:  # Only use if meaningful
+                parts.append(f"Throughout the story, {entity} {a}.")
 
         # Relationships
         rel = facts.get('relationships', [])
@@ -322,15 +366,39 @@ class StyleRealizer:
 
     def _shorten_action(self, action: str) -> str:
         """Shorten an action phrase to its core."""
+        import re
+        
         # Remove leading entity name if present
         words = action.split()
         if len(words) > 1 and words[0][0].isupper():
             words = words[1:]
         result = ' '.join(words).strip()
-        # Trim to ~8 words max
-        if len(result.split()) > 8:
-            result = ' '.join(result.split()[:8])
-        return result
+        
+        # Stop at conjunctions or other entity names
+        # This prevents "looked well, and elizabeth had little opportunity"
+        stop_patterns = [
+            r'\s+and\s+',  # "and"
+            r'\s+but\s+',  # "but"
+            r'\s+or\s+',   # "or"
+            r'\s+so\s+',   # "so"
+            r'\s+then\s+', # "then"
+            r',\s+[A-Z]',  # comma followed by capital letter (new entity)
+        ]
+        for pattern in stop_patterns:
+            match = re.search(pattern, result)
+            if match:
+                result = result[:match.start()]
+                break
+        
+        # Trim to ~6 words max for conciseness
+        words = result.split()
+        if len(words) > 6:
+            result = ' '.join(words[:6])
+        
+        # Remove trailing punctuation and clean up
+        result = result.rstrip('.,;:!?')
+        
+        return result.strip()
 
     def _elevate_action(self, action: str) -> str:
         """Elevate action language for formal style."""
@@ -372,6 +440,7 @@ class StyleRealizer:
             'professional': 'Professional, concise',
             'formal': 'Formal, literary',
             'neutral': 'Neutral summary',
+            'gpt2': 'DistilGPT2 prose',
         }
         parts = []
         for i, (style, text) in enumerate(results.items(), 1):

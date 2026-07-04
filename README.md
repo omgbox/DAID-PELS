@@ -2,46 +2,64 @@
 
 ### Dictionary-Anchored Iterative Deepening with Phonetic-Enhanced Lexical Search
 
-A hybrid NLP system that trains on a book and answers questions about it. Combines rule-based NLP (phonetic matching, graph analysis, SVO extraction) with lightweight neural components (MiniGPT, Word2Vec, self-attention) — runs entirely on CPU with no API calls.
+A **conversational AI chatbot** that combines rule-based NLP with neural components to answer questions about books and the world. Runs entirely on CPU with no API calls.
 
 ---
 
 ## What Is This?
 
-DAID-PELS is a chatbot that reads a book, builds a knowledge base through iterative analysis, and answers conversational questions about the content. It uses a **dictionary as a semantic scaffold** and generates answers in multiple styles — from professional summaries to neural prose generation.
+DAID-PELS is a chatbot that:
+1. **Reads books** and builds a knowledge base through iterative analysis
+2. **Answers questions** about the book content using retrieved passages
+3. **Searches Wikipedia** for general knowledge questions
+4. **Has natural conversations** — greetings, personal statements, emotional expressions
+5. **Maintains context** across conversation turns
 
 ```
-$ python -m bookbot.main query
-============================================================
-  BOOKBOT - Pride and Prejudice
-============================================================
-  Loaded 3,958 sentences
-  Type your questions, or 'quit' to exit.
-  Try: 'Who is Elizabeth?', 'Tell me more about Darcy'
-============================================================
+> hi
+Hey! What's on your mind?
 
-> Who is Elizabeth?
+> what is rust
+Rust is a general-purpose programming language which emphasizes performance,
+type safety, concurrency, and memory safety.
 
-Option 1 -- Professional, concise
-Elizabeth is a key character in the story. Elizabeth felt all the impertinence 
-of her questions. Interacts with Darcy, Jane, Bingley.
+> who is elizabeth
+[Book passages about Elizabeth Bennet from Pride and Prejudice]
 
-Option 2 -- Formal, literary
-Elizabeth occupies a central position in the narrative. The narrative reveals 
-Elizabeth experiencing delight, among other states, adding depth to the character.
+> how many islands does japan have
+Japan... consists of four major islands alongside 14,121 smaller islands.
 
-Option 3 -- Neutral summary
-Elizabeth is a central character in the narrative. Throughout the story, Elizabeth 
-felt all the impertinence of her questions.
+> I love cooking
+That's great! Cooking is interesting. Tell me more about it!
 
-Option 4 -- Minigpt
-elizabeth was glad to be as soon as her feelings of her own...
-
-> quit
-Goodbye!
+> when was the first ufo reported
+An unidentified flying object (UFO) is an object or phenomenon seen in the sky...
 ```
 
-## Quick Start (2 minutes)
+---
+
+## What's New (v2.0)
+
+### Conversational AI
+- **Natural conversations** — not just book Q&A
+- **Wikipedia integration** — answers any general knowledge question
+- **Context tracking** — remembers what was discussed
+- **Personal statements** — "I like cooking" → remembers your preferences
+- **Emotional expressions** — "I'm feeling happy" → responds appropriately
+
+### Visual Progress
+- Loading progress bars for AI model and Wikipedia
+- Training progress with time estimates
+- Clean, informative output
+
+### Multi-Book Training
+- Train on multiple books simultaneously
+- 20+ classic books included
+- Comprehensive knowledge base
+
+---
+
+## Quick Start (5 minutes)
 
 ```bash
 # 1. Clone
@@ -51,151 +69,56 @@ cd DAID-PELS
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Download NLTK data
+# 3. Install VC++ Redistributable (REQUIRED for PyTorch)
+# Download: https://aka.ms/vs/17/release/vc_redist.x64.exe
+
+# 4. Download NLTK data
 python -c "import nltk; nltk.download('averaged_perceptron_tagger'); nltk.download('punkt'); nltk.download('wordnet'); nltk.download('stopwords'); nltk.download('words'); nltk.download('averaged_perceptron_tagger_eng')"
 
-# 4. Download assets (dictionary + sample book)
+# 5. Download assets (dictionary + sample book)
 python download_assets.py
 
-# 5. Train (~60 seconds)
+# 6. Train book knowledge (~40 seconds)
 python train_pride.py
 
-# 6. Chat!
+# 7. Train neural models (~30-40 minutes, optional)
+python train_all_models.py
+
+# 8. Chat!
 python -m bookbot.main query
 ```
 
-## How to Chat
+---
 
-### Interactive mode (multi-turn conversation)
-```bash
-python -m bookbot.main query
-```
-Then type questions at the `>` prompt. The system remembers context across turns.
+## What's Been Tested
 
-### Single question mode
-```bash
-python -m bookbot.main query --single "Who is Elizabeth?"
-python -m bookbot.main query --single "What is Pemberley?"
-python -m bookbot.main query --single "Tell me about Darcy"
-```
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Book Q&A | ✅ Tested | Works with Pride and Prejudice |
+| Wikipedia Q&A | ✅ Tested | General knowledge questions work |
+| Conversations | ✅ Tested | Greetings, personal statements, emotions |
+| Context tracking | ✅ Tested | Follow-up questions work |
+| Multi-book training | ✅ Tested | 20+ books can be trained |
+| DistilGPT2 | ✅ Tested | 82M params, good for general queries |
+| DistilGPT2 fallback | ✅ Tested | Falls back to Wikipedia when GPT2 fails |
+| Progress bars | ✅ Tested | Clean loading visualization |
 
-### Example conversation
-```
-> Who is Elizabeth?
-Based on the text: Elizabeth were herself, has an exposition.
-Connected to: Bennet, Bingley, Catherine, Charlotte.
+---
 
-> What about her sister?
-Here's more about Jane: Connected to: Bennet, Bingley, Elizabeth.
+## Use Cases
 
-> Tell me more about Darcy
-Do not you, Darcy?.
+| Use Case | Example | How It Works |
+|----------|---------|--------------|
+| **Book comprehension** | "Who is Elizabeth?" | Retrieves passages from the book |
+| **General knowledge** | "What is Python?" | Searches Wikipedia |
+| **Conversational AI** | "Hi, how are you?" | Natural language responses |
+| **Personal assistant** | "I like cooking" | Remembers preferences |
+| **Educational tool** | "Explain quantum computing" | Wikipedia-based answers |
+| **Historical research** | "Who invented the telephone?" | Wikipedia + book context |
+| **Character analysis** | "Tell me about Darcy" | Book-based character info |
+| **World knowledge** | "What is the capital of France?" | Wikipedia lookup |
 
-> What did he do?
-Darcy proposed, Darcy helped, Darcy returned.
-```
-
-## Installation
-
-### Prerequisites
-- Python 3.10+ (3.11 or 3.12 recommended)
-- ~200MB disk space for dictionary + database
-- Optional: conda (for pynini FST support)
-
-### Step-by-Step
-
-#### 1. Clone the repository
-```bash
-git clone https://github.com/omgbox/DAID-PELS.git
-cd DAID-PELS
-```
-
-#### 2. Install Python dependencies
-```bash
-pip install -r requirements.txt
-```
-
-This installs:
-- `nltk` — POS tagging, NER, WordNet
-- `pysbd` — sentence boundary detection
-- `rank-bm25` — BM25Okapi ranking
-- `inflect` — singularization/pluralization
-- `regex` — enhanced regex
-- `pronouncing` — CMU Pronouncing Dictionary (134K words)
-- `jellyfish` — Jaro-Winkler, Soundex, Metaphone
-- `abydos` — Double Metaphone, phonetic algorithms
-
-#### 3. Download NLTK data
-```bash
-python -c "
-import nltk
-nltk.download('averaged_perceptron_tagger')
-nltk.download('averaged_perceptron_tagger_eng')
-nltk.download('punkt')
-nltk.download('punkt_tab')
-nltk.download('wordnet')
-nltk.download('stopwords')
-nltk.download('words')
-nltk.download('maxent_ne_chunker')
-nltk.download('maxent_ne_chunker_tab')
-"
-```
-
-#### 4. Download dictionary and sample book
-```bash
-python download_assets.py
-```
-
-This downloads:
-- `English_dictionary.csv` — 175K-entry English dictionary (Word, POS, Definition)
-- `books/pride_and_prejudice_clean.txt` — Clean Gutenberg text of Pride and Prejudice
-
-**Manual download** if the script fails:
-- Dictionary: https://raw.githubusercontent.com/vijayvamsi28/English-Dictionary/refs/heads/main/English_dictionary.csv
-- Book: Download from Project Gutenberg (https://www.gutenberg.org/ebooks/1342) and clean with `python preprocess_gutenberg.py`
-
-#### 5. (Optional) Install pynini for FST support
-```bash
-conda install -c conda-forge pynini
-```
-
-## Usage
-
-### Train on a Book
-```bash
-# Fast training (Pride and Prejudice, ~60 seconds)
-python train_pride.py
-
-# Or use the main entry point
-python -m bookbot.main train --passes 1
-
-# Train on your own book
-python -m bookbot.main train --book books/my_book.txt
-
-# Train with more passes
-python -m bookbot.main train --passes 3
-```
-
-### Query
-```bash
-# Interactive mode (multi-turn with conversation memory)
-python -m bookbot.main query
-
-# Single question
-python -m bookbot.main query --single "Who is Elizabeth?"
-python -m bookbot.main query --single "What is Pemberley?"
-python -m bookbot.main query --single "Tell me about Darcy"
-```
-
-### Show Database Stats
-```bash
-python -m bookbot.main stats
-```
-
-### Preprocess Gutenberg Books
-```bash
-python preprocess_gutenberg.py books/raw_book.txt -o books/clean_book.txt
-```
+---
 
 ## Architecture
 
@@ -208,74 +131,54 @@ Raw Text → OCR Normalize → Tokenize → POS Tag → NER → SVO Extract
 
 ### Query Pipeline
 ```
-User Query → Contextual Rewrite → Classify Intent → Trilateral BM25
-           → Structured Knowledge Retrieval → Answer Engine
-           → Advanced Prose Generation (4 styles: Professional/Formal/Neutral/MiniGPT)
-           → Confidence Score → Format Response
+User Message → Intent Classification → Route Decision
+    ↓
+    ├── Book Query → Book DB Search → Return Passages
+    ├── General Knowledge → Wikipedia Search → Return Facts
+    ├── Personal Statement → Store Preference → Acknowledge
+    ├── Emotional → Respond Empathetically
+    └── Greeting/Farewell → Social Response
 ```
 
-### Module Map
+---
+
+## Module Map
 
 | Layer | Directory | Modules |
 |-------|-----------|---------|
 | **Libraries** | `lib/` | `phonetic_matcher`, `word2vec`, `edit_distance`, `fst_engine`, `phonetics`, `gematria`, `anagram`, `text_utils` |
 | **Core NLP** | `core/` | `tokenizer`, `pos_tagger`, `pos_guesser`, `ner_extractor`, `svo_extractor`, `coreference`, `entity_graph`, `topic_modeler`, `temporal_reasoner` |
 | **Query** | `query/` | `trilateral_bm25`, `query_classifier`, `answer_engine`, `conversation_memory`, `contextual_rewriter`, `response_formatter`, `advanced_answer`, `style_realizer`, `prose_realizer` |
-| **Neural** | `query/` | `minigpt` (463K params), `multi_scorer` (5-head), `svo_scorer`, `self_attention`, `token_attention`, `torch_attention` |
+| **Conversational** | `query/` | `conversational_ai`, `conversational_responder`, `personal_statement_handler`, `general_knowledge_retriever`, `user_profile`, `conversation_router`, `response_personalizer` |
+| **Neural** | `query/` | `minigpt` (DistilGPT2 82M params), `multi_scorer` (5-head), `svo_scorer`, `self_attention`, `token_attention`, `torch_attention` |
 | **Training** | `training/` | `convergence_tracker`, `pass_manager`, `visualizer`, `attention_trainer`, `self_supervised_data` |
 | **Database** | `database/` | `db_manager`, `schema.sql` (25 tables) |
+
+---
 
 ## What's Novel?
 
 ### 1. Dictionary-Anchored Learning
-Most text comprehension systems learn from the text alone. DAID-PELS uses a 175K-entry dictionary as a **semantic scaffold** — definitions provide grounding for the words encountered in the book. The system links words in the text to their dictionary definitions, creating a semantic layer on top of raw statistics.
+Uses a 175K-entry dictionary as a **semantic scaffold** — definitions provide grounding for the words encountered in the book.
 
 ### 2. Phonetic-Enhanced Lexical Search (Trilateral BM25)
-Standard BM25 matches exact words. Trilateral BM25 adds two phonetic dimensions:
-
-| Signal | Source | Purpose |
-|--------|--------|---------|
-| **BM25** | TF-IDF ranking | Exact keyword matching |
-| **Soundex bitmask** | Consonant skeleton encoding | Fast phonetic similarity |
-| **Double Metaphone** | CMU Pronouncing Dictionary (134K words) | Precise sound-alike detection |
-
-This means "Darcy" can match "Darsay", "Bennet" can match "Bennett", and OCR errors like "titanic" can match "titamc".
+Combines BM25 + Soundex + Double Metaphone for robust matching:
+- "Darcy" matches "Darsay"
+- "Bennet" matches "Bennett"
+- OCR errors like "titanic" match "titamc"
 
 ### 3. Hybrid Rule-Based + Neural Architecture
-Unlike pure-LLM or pure-rule systems, DAID-PELS combines both:
-- **Rule-based NLP**: SVO extraction, coreference resolution, entity graphs, phonetic matching
-- **Neural components**: MiniGPT (463K params) for prose generation, Word2Vec for semantic similarity, multi-head attention for sentence selection
+- **Rule-based NLP**: SVO extraction, coreference, entity graphs, phonetic matching
+- **Neural components**: DistilGPT2 for generation, Word2Vec for similarity
 - All running on CPU with no API calls — fully offline
 
-### 4. Multi-Style Answer Generation
-Instead of a single answer, the system generates 4 options:
-- **Professional**: Concise, factual summary
-- **Formal**: Literary, narrative style
-- **Neutral**: Reference-style overview
-- **MiniGPT**: Neural prose generation trained on the book itself
+### 4. Wikipedia Integration
+Searches Wikipedia for general knowledge questions — no fine-tuning needed.
 
-### 5. POS Guesser from Definition Patterns
-Words with empty POS fields in the dictionary get their part-of-speech inferred by analyzing the grammatical structure of their definitions. For example, if a definition follows the pattern "a [adjective] [noun] that...", the word is likely a noun.
+### 5. Self-Supervised Training
+MiniGPT and Word2Vec are trained directly on the book — no external training data needed.
 
-### 6. Clause-Aware SVO Extraction
-The SVO extractor detects clause boundaries (subordinating conjunctions, coordinating conjunctions, punctuation) to prevent cross-clause subject/object bleeding — a common failure in simpler NLP pipelines.
-
-### 7. Self-Supervised Training
-MiniGPT and Word2Vec are trained directly on the book itself — no external training data needed. The system learns the author's style, vocabulary, and character relationships from the text alone.
-
-## Use Cases
-
-| Use Case | Description |
-|----------|-------------|
-| **Book comprehension chatbot** | Ask questions about Pride and Prejudice, Sherlock Holmes, or any plain text book |
-| **OCR-robust search** | Find passages even when words are misspelled or OCR-corrupted (phonetic matching) |
-| **Educational tool** | Students can query classic literature conversationally — great for literature classes |
-| **Research baseline** | No-LLM baseline for comparing against neural QA systems — shows what rule-based NLP can do |
-| **Offline NLP** | Runs entirely locally — no API calls, no internet required after training |
-| **Low-resource deployment** | No GPU needed, runs on any machine with Python 3 (~60s training, ~1s queries) |
-| **Author style analysis** | MiniGPT learns to write like Jane Austen — useful for stylistic analysis |
-| **Character relationship mapping** | Entity graph + SVO triples reveal how characters interact |
-| **Historical text processing** | Phonetic matching handles OCR errors in scanned historical documents |
+---
 
 ## Configuration
 
@@ -288,57 +191,43 @@ All settings in `config.py`. Environment variables override paths:
 | `BOOKBOT_DB_PATH` | `bookbot.db` | SQLite database path |
 | `BOOKBOT_LOG_LEVEL` | `INFO` | Logging level |
 
-Or use command-line flags:
-```bash
-python -m bookbot.main train --book books/my_book.txt --dict my_dict.csv --db my.db
-```
+---
 
 ## Performance
 
 | Metric | Value |
 |--------|-------|
-| Training time (724K chars) | ~62 seconds |
-| MiniGPT training (25 epochs) | ~37 minutes (CPU) |
-| POS tagging (15K sentences) | ~15 seconds |
-| NER (15K sentences) | ~0.5 seconds |
+| Book training time (724K chars) | ~40 seconds |
+| Neural models training (all) | ~30-40 minutes (CPU) |
+| Word2Vec training (5 epochs) | ~2 minutes |
+| DistilGPT2 loading | ~2 seconds |
+| Wikipedia search | ~1 second |
 | Query response time | ~1-2 seconds |
-| Database size | ~50MB |
-| Dictionary entries | 175,721 |
+| Database size (20 books) | ~170MB |
+| Dictionary entries | 206,956 |
 | CMU pronunciations | 134,000+ words |
-| MiniGPT parameters | 463,232 |
-| MiniGPT model size | 2.78 MB |
+| DistilGPT2 parameters | 82M |
+
+---
 
 ## Database Schema
 
-The system uses SQLite with 25 tables:
+The system uses SQLite with 25+ tables:
 
 | Table | Purpose |
 |-------|---------|
-| `definitions` | 175K dictionary entries |
-| `sentences` | Tokenized sentences from the book |
+| `definitions` | 206K dictionary entries |
+| `sentences` | Tokenized sentences from books |
 | `sentence_tokens` | Individual tokens with POS tags |
 | `entities` | Named entities |
 | `svo_triples` | Subject-Verb-Object relationship triples |
-| `entity_mentions` | Entity occurrences in sentences |
 | `knowledge_edges` | Entity relationship graph |
 | `coreference_chains` | Pronoun resolution chains |
 | `topics` | Topic clusters |
-| `temporal_events` | Time-related events |
-| `convergence_log` | Training pass statistics |
+| `user_preferences` | User preferences and facts |
+| `learned_knowledge` | Facts learned from conversations |
 
-Full schema: `database/schema.sql`
-
-## Research
-
-The system implements ideas from:
-
-- **BM25** (Robertson et al., 1994) — probabilistic ranking function
-- **Soundex** (American Soundex, 1918) — phonetic encoding
-- **Double Metaphone** (Philips, 2000) — ambiguous pronunciation handling
-- **KL-divergence** — training convergence measurement
-- **Trilateral BM25** — novel combination of BM25 + phonetic signals
-
-Research notes: `research/` directory
+---
 
 ## Project Structure
 
@@ -346,45 +235,40 @@ Research notes: `research/` directory
 DAID-PELS/
 ├── main.py                 # Entry point (train/query/stats)
 ├── pipeline.py             # Training + query orchestration
-├── pipeline_context.py     # Shared context between modules
 ├── config.py               # All settings (portable paths)
 ├── train_pride.py          # Fast training script
-├── train_minigpt.py        # MiniGPT training script
+├── train_all_books.py      # Train on all books
+├── train_all_models.py     # Train neural models
 ├── download_assets.py      # Download dictionary + sample book
-├── preprocess_gutenberg.py # Clean Gutenberg texts
+├── download_book.py        # Download books from Project Gutenberg
 ├── requirements.txt        # Python dependencies
 ├── core/                   # NLP modules
 │   ├── tokenizer.py        # pysbd sentence splitting
 │   ├── pos_tagger.py       # Batch-optimized NLTK POS
-│   ├── pos_guesser.py      # POS from definition patterns
 │   ├── ner_extractor.py    # Gazetteer + regex NER
 │   ├── svo_extractor.py    # Subject-Verb-Object triples
 │   ├── coreference.py      # Pronoun resolution
-│   ├── entity_graph.py     # Entity relationship graph
-│   └── ...
+│   └── entity_graph.py     # Entity relationship graph
 ├── query/                  # Query pipeline
+│   ├── conversational_ai.py    # Main conversational pipeline
+│   ├── conversational_responder.py  # Chat responses
+│   ├── personal_statement_handler.py  # Handle personal statements
+│   ├── general_knowledge_retriever.py  # Wikipedia search
+│   ├── user_profile.py     # User preferences
 │   ├── trilateral_bm25.py  # Phonetic-enhanced BM25
-│   ├── advanced_answer.py  # Multi-style answer generation
-│   ├── minigpt.py          # GPT-style transformer (463K params)
-│   ├── multi_scorer.py     # 5-head neural scorer
-│   ├── style_realizer.py   # Professional/Formal/Neutral styles
-│   ├── prose_realizer.py   # Book sentence selection
-│   ├── answer_engine.py    # Multi-sentence assembly
-│   ├── conversation_memory.py  # Multi-turn context
+│   ├── minigpt.py          # DistilGPT2 integration
 │   └── ...
 ├── lib/                    # Standalone utilities
 │   ├── phonetic_matcher.py # CMU + Double Metaphone + Jaro-Winkler
 │   ├── word2vec.py         # Skip-gram trained on book
-│   ├── fst_engine.py       # Pynini FST support
 │   └── ...
 ├── training/               # Training management
-│   ├── attention_trainer.py    # Token attention trainer
-│   └── self_supervised_data.py # Auto-generate training pairs
 ├── database/               # SQLite schema + manager
-├── books/                  # Place your books here
-├── research/               # Research notes
-└── docs/                   # Full specification
+├── books/                  # Downloaded books (20+ classics)
+└── data/                   # Data files
 ```
+
+---
 
 ## License
 

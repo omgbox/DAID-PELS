@@ -68,8 +68,7 @@ def fast_train():
         w_idx = header.index('Word')
         p_idx = header.index('POS')
         d_idx = header.index('Definition')
-        definitions = [None] * 175721  # pre-allocate
-        count = 0
+        definitions = []  # will append
         for i, row in enumerate(reader):
             if len(row) < 3:
                 continue
@@ -77,7 +76,7 @@ def fast_train():
             pos = row[p_idx].strip('"') if p_idx < len(row) else ''
             definition = row[d_idx].strip('"') if d_idx < len(row) else ''
             if word and definition:
-                definitions[count] = {
+                definitions.append({
                     'word': word,
                     'pos_canonical': pos,
                     'pos_original': pos,
@@ -86,9 +85,7 @@ def fast_train():
                     'word_length': len(word),
                     'def_word_count': len(definition.split()),
                     'entry_index': i,
-                }
-                count += 1
-        definitions = definitions[:count]
+                })
     
     # Insert definitions in batches
     batch_size = 50000

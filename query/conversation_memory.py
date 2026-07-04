@@ -323,3 +323,124 @@ class ConversationMemory:
         self.entity_stack = EntityStack(max_size=20)
         self.topic_tracker = TopicTracker()
         self._turn_counter = 0
+
+    def learn_from_turn(self, user_query: str, answer: str, intent: str,
+                       user_profile=None, knowledge_retriever=None):
+        """
+        Learn from a conversation turn - store facts and preferences.
+
+        Args:
+            user_query: User's query
+            answer: Bot's answer
+            intent: Classified intent
+            user_profile: UserProfile instance for storing preferences
+            knowledge_retriever: GeneralKnowledgeRetriever for storing facts
+        """
+        # Learn from personal statements
+        if intent == 'PERSONAL_STATEMENT' and user_profile:
+            self._learn_personal_fact(user_query, user_profile)
+
+        # Learn from factual exchanges
+        elif intent in ('FACTUAL', 'DEFINITIONAL', 'GENERAL_KNOWN') and knowledge_retriever:
+            self._learn_factual_knowledge(user_query, answer, knowledge_retriever)
+
+        # Learn from emotional expressions
+        elif intent == 'EMOTIONAL' and user_profile:
+            self._learn_emotional_state(user_query, user_profile)
+
+    def _learn_personal_fact(self, query: str, user_profile):
+        """Extract and store personal facts from user statements."""
+        import re
+
+        query_lower = query.lower().strip()
+
+        # Preference patterns
+        preference_patterns = [
+            (r'i (like|love|enjoy|adore) (.+)', 'positive'),
+            (r'i (hate|dislike|can\'t stand) (.+)', 'negative'),
+        ]
+
+        for pattern, sentiment in preference_patterns:
+            match = re.search(pattern, query_lower)
+            if match:
+                value = match.group(2).strip('.,!?')
+                user_profile.store_preference('interest', value, sentiment)
+                logger.debug(f"Learned preference: {value} ({sentiment})")
+                return
+
+        # Fact patterns
+        fact_patterns = [
+            (r'my name is (.+)', 'name'),
+            (r'i (?:am|i\'m) (\d+) years? old', 'age'),
+            (r'i (?:live in|reside in|am from) (.+)', 'location'),
+            (r'i (?:work at|work for) (.+)', 'workplace'),
+            (r'i (?:work as|am a|am an) (.+)', 'occupation'),
+        ]
+
+        for pattern, fact_type in fact_patterns:
+            match = re.search(pattern, query_lower)
+            if match:
+                value = match.group(1).strip('.,!?')
+                user_profile.store_fact(fact_type, value)
+                logger.debug(f"Learned fact: {fact_type} = {value}")
+                return
+
+    def _learn_factual_knowledge(self, query: str, answer: str,
+                                knowledge_retriever):
+        """Store factual Q&A pairs for future reference."""
+        import re
+
+        # Extract topic from query
+        topic = self._extract_topic(query)
+
+        # Only store if answer seems informative
+        if len(answer) > 50 and not answer.startswith("I don't"):
+            # Clean answer for storage
+            clean_answer = answer[:500]  # Limit length
+            knowledge_retriever.store_knowledge(
+                topic=topic,
+                fact=clean_answer,
+                source='conversation',
+                confidence=0.6
+            )
+            logger.debug(f"Learned knowledge: {topic}")
+
+    def _learn_emotional_state(self, query: str, user_profile):
+        """Track emotional states over time."""
+        import re
+
+        # Extract emotion
+        emotion_match = re.search(
+            r"(?:feeling|so|very)?\s*(sad|happy|excited|angry|frustrated|anxious|worried|great|terrible|stressed|tired)",
+            query.lower()
+        )
+
+        if emotion_match:
+            emotion = emotion_match.group(1)
+            user_profile.store_fact('last_emotion', emotion)
+            logger.debug(f"Learned emotion: {emotion}")
+
+    def _extract_topic(self, query: str) -> str:
+        """Extract the main topic from a query."""
+        import re
+
+        # Remove question words
+        cleaned = re.sub(r'^(what|who|how|when|where|why|is|are|was|were|do|does|did)\s+', '', query.lower())
+        cleaned = re.sub(r'^(is|are|was|were|do|does|did)\s+', '', cleaned)
+
+        # Remove common words
+        stop_words = {'the', 'a', 'an', 'of', 'in', 'for', 'and', 'or', 'to', 'is', 'are', 'was', 'were'}
+        words = cleaned.split()
+        topic_words = [w for w in words if w not in stop_words and len(w) > 2]
+
+        return ' '.join(topic_words[:5]) if topic_words else query[:50]
+
+    def get_user_name(self) -> Optional[str]:
+        """Get the user's name if stored in conversation."""
+        # Check recent turns for name introductions
+        for turn in reversed(list(self.history)):
+            query = turn.get('user_query', '').lower()
+            match = re.search(r'my name is (.+)', query)
+            if match:
+                return match.group(1).strip('.,!?')
+        return None

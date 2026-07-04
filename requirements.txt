@@ -1,6 +1,8 @@
 # BookBot Dependencies
 # Install: pip install -r requirements.txt
 # Note: Pynini requires conda install -c conda-forge pynini
+# Note: PyTorch requires Microsoft Visual C++ Redistributable
+#       Download: https://aka.ms/vs/17/release/vc_redist.x64.exe
 
 # NLP - Core
 nltk==3.8.1                    # POS tagging, NER, chunking, WordNet
@@ -10,12 +12,18 @@ pysbd==0.3.4                   # Sentence boundary detection
 rank-bm25==0.2.2               # BM25Okapi implementation
                                # (depends on numpy, which it brings)
 
+# Neural (for MiniGPT, Word2Vec, MultiDimScorer)
+torch                          # PyTorch (CPU-only)
+numpy                          # Numerical computing
+
+# General Knowledge (for conversational chatbot)
+wikipedia-api>=0.6.0           # Wikipedia access for open-domain questions
+
 # Database
 # SQLite3 is built into Python standard library (no pip install needed)
 
 # Utilities
 inflect==7.0.0                 # Singularization/pluralization
-regex==2023.10.3               # Enhanced regex (superset of re module)
 
 # Phonetic Matching
 pronouncing                    # CMU Pronouncing Dictionary access (134K words)
